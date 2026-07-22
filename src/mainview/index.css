@@ -1,0 +1,107 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
+
+/* 仅定义跨业务的设计令牌；禁止在此混入业务模块或组件专属样式变量。 */
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: 'Geist Variable', sans-serif;
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --text-xs: 10px;
+  --text-sm: 12px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 21px;
+  --text-xs--line-height: 14px;
+  --text-sm--line-height: 18px;
+  --text-base--line-height: 21px;
+  --text-lg--line-height: 24px;
+  --text-xl--line-height: 25px;
+  --text-2xl--line-height: 28px;
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.24 0.006 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.24 0.006 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.24 0.006 260);
+  --primary: oklch(0.18 0.006 260);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.24 0.006 260);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.51 0.008 260);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.24 0.006 260);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0 0 0 / 7%);
+  --input: oklch(0 0 0 / 7%);
+  --ring: oklch(0.708 0 0);
+  --radius: 0.375rem;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.93 0.004 260);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.93 0.004 260);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.93 0.004 260);
+  --primary: oklch(0.95 0.004 260);
+  --primary-foreground: oklch(0.18 0.006 260);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.93 0.004 260);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.72 0.008 260);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.93 0.004 260);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-size: 14px;
+  }
+
+  html {
+    @apply font-sans;
+  }
+}

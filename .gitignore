@@ -1,0 +1,8 @@
+node_modules/
+build/
+dist/
+artifacts/
+*.tsbuildinfo
+tmp/
+.agents/
+.DS_Store

@@ -1,0 +1,97 @@
+import { Settings2 } from "lucide-react";
+import { type ReactElement } from "react";
+import type { PiAuthenticationStatus } from "@shared/pi-contract";
+import { Button } from "@view/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@view/components/ui/dialog";
+import { Switch } from "@view/components/ui/switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@view/components/ui/tooltip";
+
+type AppSettingsDialogProps = {
+	authentication?: PiAuthenticationStatus[];
+	disabled: boolean;
+	isNetworkOnline: boolean;
+	onOpenAuthentication: () => void;
+	onShowThinkingChange: (value: boolean) => void;
+	showThinking: boolean;
+};
+
+export function AppSettingsDialog({
+	authentication,
+	disabled,
+	isNetworkOnline,
+	onOpenAuthentication,
+	onShowThinkingChange,
+	showThinking,
+}: AppSettingsDialogProps): ReactElement {
+	return (
+		<Dialog>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<DialogTrigger asChild>
+						<Button
+							aria-label="应用设置"
+							size="icon-sm"
+							type="button"
+							variant="ghost"
+						>
+							<Settings2 aria-hidden />
+						</Button>
+					</DialogTrigger>
+				</TooltipTrigger>
+				<TooltipContent side="right">设置</TooltipContent>
+			</Tooltip>
+			<DialogContent className="sm:max-w-md">
+				<DialogHeader>
+					<DialogTitle>应用设置</DialogTitle>
+					<DialogDescription>这些偏好保存在当前设备上。</DialogDescription>
+				</DialogHeader>
+				<div className="flex items-center justify-between gap-6 rounded-lg border bg-muted/30 p-3">
+					<div>
+						<p className="text-sm font-medium">显示模型思考过程</p>
+						<p className="mt-1 text-xs text-muted-foreground">
+							在会话中展示流式推理文本。
+						</p>
+					</div>
+					<Switch
+						aria-label="显示模型思考过程"
+						checked={showThinking}
+						onCheckedChange={onShowThinkingChange}
+					/>
+				</div>
+				<p className="text-xs text-muted-foreground">
+					网络状态：{isNetworkOnline ? "在线" : "离线"}
+				</p>
+				<section className="border-t pt-4">
+					<div className="flex items-center justify-between gap-3">
+						<div>
+							<p className="text-sm font-medium">模型提供商</p>
+							<p className="mt-1 text-xs text-muted-foreground">
+								{providerStatusMessage(authentication)}
+							</p>
+						</div>
+						<Button disabled={disabled} onClick={onOpenAuthentication} size="xs" type="button" variant="outline">
+							管理
+						</Button>
+					</div>
+				</section>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+function providerStatusMessage(authentication?: PiAuthenticationStatus[]): string {
+	if (!authentication) return "选择工作区后查看提供商连接状态。";
+	if (authentication.some((provider) => provider.status === "available")) return "至少一个提供商已连接。";
+	return "尚未连接可用的模型提供商。";
+}
