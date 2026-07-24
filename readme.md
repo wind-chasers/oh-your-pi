@@ -3,6 +3,11 @@
 > [Pi Coding Agent](https://pi.dev/) 的本机桌面客户端。
 
 Oh Your Pi 不重新实现 Agent。它通过 Pi SDK 直接使用你已有的 Pi 配置、认证、模型、扩展、技能、提示模板、上下文文件和原生 JSONL 会话，让桌面界面与 Pi TUI 处于同一套数据体系中。
+> [!IMPORTANT]
+> ## 下载最新版本
+> **[前往 GitHub Releases 下载 →](https://github.com/wind-chasers/oh-your-pi/releases/latest)**
+>
+> 提供 macOS（Apple Silicon）与 Windows 安装包。
 
 ![Oh Your Pi 首屏](docs/imgs/home.png)
 
