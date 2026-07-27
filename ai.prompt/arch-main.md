@@ -2,287 +2,170 @@
 
 ## 职责
 
-`src/bun/` 持有所有需要本机权限或 Pi SDK 的能力：
-
-- BrowserWindow 和桌面系统调用。
-- Electrobun RPC server。
-- workspace、authentication、session 业务用例。
-- Pi Coding Agent SDK 生命周期。
-- workspace 文件访问和路径安全。
-- 凭据、模型配置和 session 持久化访问。
-
-## 目录结构
-
-```text
-src/bun/
-├── index.ts
-├── desktop/
-│   ├── main-window.ts
-│   ├── system.ts
-│   ├── view-url.ts
-│   └── window-state.ts
-├── rpc/
-│   ├── index.ts
-│   └── index.test.ts
-├── app/
-│   ├── index.ts
-│   ├── authentication/
-│   ├── workspace/
-│   └── session/
-├── pi/
-│   ├── index.ts
-│   ├── runtime.ts
-│   ├── authentication.ts
-│   ├── workspace.ts
-│   ├── errors.ts
-│   └── session/
-│       ├── index.ts
-│       ├── session.ts
-│       ├── registry.ts
-│       ├── snapshot.ts
-│       ├── events.ts
-│       └── hooks.ts
-└── utils/
-    └── redact-sensitive-text.ts
-```
-
-## 依赖方向
+Bun 主进程是所有可信能力的 owner：Pi SDK、认证与凭据访问、工作区文件 I/O、活动会话、工具授权、桌面系统调用和窗口生命周期。Renderer 只能通过 RPC 请求这些能力。
 
 ```mermaid
-flowchart TD
-  Entry["bun/index.ts"] --> Desktop["desktop/"]
-  Entry --> RPC["rpc/"]
-  Entry --> App["app/"]
-  Entry --> Pi["pi/"]
-
+flowchart LR
+  Entry["src/bun/index.ts"] --> Desktop["desktop/\n窗口与系统能力"]
+  Entry --> RPC["rpc/\n传输适配"]
+  Entry --> App["app/\n应用用例与交互"]
+  Entry --> Pi["pi/\nPi SDK 运行边界"]
   RPC --> App
   RPC --> Desktop
   App --> Pi
-  App --> Shared["shared contract"]
-  Pi --> SDK["@earendil-works/pi-*"]
+  Pi --> SDK["Pi Coding Agent SDK"]
 ```
 
-静态规则：
+依赖只能按图向右或向下流动：`pi/` 不依赖 `app/`、`rpc/` 或 `desktop/`；`app/` 不知道 Electrobun；`rpc/` 不实现业务规则。
 
-- 只有 `pi/**` 导入 `@earendil-works/pi-*`。
-- `pi/**` 不导入 `@shared/**`、Electrobun 或 `app/**`。
-- `app/**` 只通过 `@main/pi` 使用 Pi SDK facade。
-- `rpc/**` 只依赖 `Application`、`DesktopSystem` 和共享 RPC schema。
-- `desktop/**` 不知道 workspace、session 或 authentication 业务。
+对应局部 owner 文档：
 
-## 组合根与生命周期
+- [`src/bun/pi/ai.prompt.md`](../src/bun/pi/ai.prompt.md)：Pi SDK runtime、workspace 与 live session 生命周期。
+- [`src/bun/app/ai.prompt.md`](../src/bun/app/ai.prompt.md)：应用用例、DTO 映射与交互状态。
+- [`src/bun/app/session/ai.prompt.md`](../src/bun/app/session/ai.prompt.md)：session event、工具授权与认证恢复状态机。
 
-`src/bun/index.ts` 是唯一组合根，按固定顺序创建：
+本文维护主进程跨模块依赖和端到端约束；修改单个 owner 时由对应局部文档维护实现语义。
+
+## 当前源码结构
 
 ```text
-registerPiOAuthFlows
-  → PiRuntime.create
-  → new Application(pi)
-  → createDesktopSystem
-  → createPiRpc
-  → createMainWindow
+src/bun/
+├── index.ts                         # 进程组合根、窗口 reopen 与退出协调
+├── desktop/
+│   ├── main-window.ts               # BrowserWindow 创建与窗口事件
+│   ├── window-state.ts              # home frame 持久化
+│   ├── system.ts                    # 目录选择和外部 URL
+│   └── view-url.ts                  # 开发/构建 View URL
+├── rpc/
+│   └── index.ts                     # Electrobun handler 与 message bridge
+├── app/
+│   ├── index.ts                     # Application 与完整 workspace snapshot
+│   ├── authentication/              # provider 登录交互和串行化
+│   ├── workspace/                   # 资源 DTO 与受限文件读取
+│   └── session/                     # 会话用例、event、permission、recovery
+├── pi/
+│   ├── runtime.ts                   # ModelRuntime、workspace cache、registry
+│   ├── authentication.ts            # Pi provider 能力
+│   ├── workspace.ts                 # Pi resources 与持久 session 入口
+│   ├── session/                     # AgentSession 生命周期与领域 event
+│   └── errors.ts                    # 稳定错误分类
+└── utils/
+    └── redact-sensitive-text.ts     # 跨边界前的敏感文本脱敏
 ```
 
-生命周期：
+目录按真实 owner 划分，而不是按 request 名称拆文件。`index.ts` 只完成进程级装配；新增行为进入拥有状态和生命周期的目录，不把业务继续堆进入口或 RPC handler。
 
-- `PiRuntime` 和 `Application` 在主进程内各创建一次。
-- macOS `reopen` 只重建窗口，复用 Pi、App 和 RPC。
-- `before-quit` 先阻止默认退出，幂等释放 RPC subscriptions、App pending 状态和 Pi sessions，再调用 `Utils.quit()`。
-- App dispose 先清理 session 业务状态和认证交互；Pi dispose 负责全部 live AgentSession。
+## 分层与所有权
 
-## Desktop 适配层
+### `pi/`：SDK 运行边界
 
-### `desktop/main-window.ts`
+- `PiRuntime` 创建并持有唯一 `ModelRuntime`、工作区缓存和 `PiSessionRegistry`。
+- `PiWorkspace` 以规范化后的真实目录为身份，负责资源快照、持久 session 列表和 session 创建/打开。
+- `PiSessionRegistry` 以规范化 `sessionPath` 保证活动 session 单实例，并处理并发打开、关闭、idle rebuild 和统一释放。
+- 每个 `PiSession` 独占一个 `AgentSession` 及其 services，封装模型、thinking、prompt、事件订阅、重建和关闭。
+- `PiAuthentication` 只包装 Pi `ModelRuntime` 的 provider 状态与登录能力，不持有 UI 交互状态。
 
-创建 BrowserWindow，处理 move、resize 和 close；窗口级 `HomeWindowStateSaver` 负责调度和 flush frame。
+`pi/` 对外使用自己的领域类型，不导入共享 RPC DTO。SDK 类型到应用 DTO 的转换属于 `app/`。
 
-### `desktop/view-url.ts`
+### `app/`：应用用例层
 
-开发 channel 优先等待 Vite `http://localhost:5173`，不可用时加载打包页面 `views://mainview/index.html`。
+- `Application` 组合 authentication、workspace 和 session 三个应用服务，并组装完整工作区快照。
+- `AuthenticationApplication` 持有 provider 级操作串行化、AbortController、待响应 prompt 和认证事件订阅。
+- `WorkspaceApplication` 负责工作区资源 DTO、文件访问和进入 UI 前的诊断脱敏。
+- `SessionApplication` 负责 session 用例、SDK 事件到 DTO 的转换、工具授权和一次性认证恢复。
 
-### `desktop/system.ts`
+应用层可以协调多个 Pi 能力，但不直接访问 Electrobun 或 React。
 
-封装目录选择和外部链接：
+### `rpc/`：传输适配
 
-- `chooseWorkspaceDirectory()`
-- `openExternalUrl(url)`
+`createPiRpc()` 是 Bun 端唯一 RPC binding：request 直接委派给 application/desktop owner，application event 转发为 WebView message，`dispose()` 解除所有订阅。这里不做重试、状态机、权限判断或 DTO 二次建模。
 
-### `desktop/window-state.ts`
+### `desktop/`：系统边界
 
-窗口位置与尺寸保存在 `~/.pi/oh-your-pi/window.json`：
+窗口创建、窗口状态、目录选择器、外部 URL 和开发/生产 View URL 解析都属于 `desktop/`。Pi 和 application 层不得直接依赖 Electrobun 的窗口或系统 API。
 
-- 内存中使用 `{ x, y, width, height }`。
-- 磁盘中使用 `{ home: { x, y, w, h } }`。
-- move/resize 以 150 ms 防抖写入。
-- 写入临时文件后 rename，目录和文件权限分别为 `0700`、`0600`。
-- 缺失或非法状态返回默认 frame。
+### Desktop 与窗口状态
 
-## RPC 适配层
+`createMainWindow()` 使用已保存 frame 或 `{ x: 200, y: 200, width: 1200, height: 800 }` 创建窗口。首次创建立即写入状态；move/resize 事件更新 frame 并由 `HomeWindowStateSaver` 以 150 ms 合并写入，close 前同步 flush。
 
-`rpc/index.ts` 创建 `BrowserView.defineRPC<PiRpcSchema>()`，职责只有：
+macOS 关闭最后一个窗口后进程继续存在，`reopen` 创建新窗口并复用同一个 `PiRuntime`、Application 与 RPC binding。真正退出由 `before-quit` 协调；不得把窗口关闭等同于释放 Pi runtime。
 
-1. 将 request 转发到 `Application` 或 `DesktopSystem`。
-2. 将 App subscription 转发为 webview message。
-3. 在认证事件携带 URL 时调用 `desktop.openExternalUrl()`。
-4. dispose 时退订全部 listener。
+`DesktopSystem` 是 application/RPC 可使用的最小系统能力，只暴露选择工作区目录和打开外部 URL。文件选择器、BrowserWindow 或 `Utils` 不进入 Pi 与 application 层。
 
-主要映射：
+## 会话调用链
 
-```text
-inspectWorkspace           → app.inspectWorkspace
-refreshWorkspaceResources  → app.refreshWorkspaceResources
-authentication requests    → app.authentication
-session requests           → app.session
-workspace file requests    → app.workspace
-chooseWorkspace            → desktop.chooseWorkspaceDirectory
+```mermaid
+sequenceDiagram
+  participant View as Renderer
+  participant Rpc as RPC
+  participant App as SessionApplication
+  participant Auth as AuthenticationApplication
+  participant Session as PiSession
+  participant SDK as AgentSession
+
+  View->>Rpc: promptSession(sessionPath, text)
+  Rpc->>App: prompt
+  App->>Auth: withProviderOperation
+  App->>Session: requireResolvedAuthentication
+  App->>Session: prompt
+  Session->>SDK: prompt
+  SDK-->>Session: streaming events
+  Session-->>App: Pi session events
+  App-->>Rpc: shared DTO events
+  Rpc-->>View: sessionEvent
 ```
 
-主进程推送：
+`prompt()` 只等待 SDK 接受请求，不等待整轮生成完成；后续状态通过 event 流推进。`steer`、`followUp` 和 `abort` 只作用于已经由 registry 打开的 session。
 
-- `sessionEvent`
-- `authenticationEvent`
-- `toolPermissionRequest`
+## Workspace 与 Session 路由
 
-## App 业务层
+所有 workspace 用例都携带显式 `workspacePath`，所有 live session 命令都携带持久 `sessionPath`。主进程不保存“当前工作区”或“当前活动会话”；UI 选择变化不能改变其他并行 session 的路由。
 
-### `app/index.ts`
+`PiRuntime.openWorkspace()` 对路径执行绝对化、目录检查和 `realpath`，然后按规范路径缓存 `PiWorkspace`。读取或打开已有 session 时，workspace 通过 Pi `SessionManager.list()` 查找真实 session 信息，不能接受任意 JSONL 路径作为活动会话。
 
-`Application` 聚合三个平级能力：
+资源刷新会重新检查 extensions、skills、prompts 和 context，并只重建该 workspace 中 idle 的 live session。运行中的 session 保持原 services，避免在生成过程中替换 extension runner。每个 session 的模型、thinking、transcript 和工具状态都来自自己的 `AgentSession`。
 
-```text
-Application
-├── AuthenticationApplication
-├── WorkspaceApplication
-└── SessionApplication
-```
+## 工具授权
 
-`inspectWorkspace()` 和 `refreshWorkspaceResources()` 在这里组合 resources、authentication 和 session summaries；workspace 模块本身不拥有认证或 live session 状态。
+Pi session 通过 extension hook 在工具执行前进入 `ToolPermissionApplication`：
 
-### `app/authentication/`
+- `read`、`grep`、`find`、`ls` 默认允许；其他工具请求 Renderer 明确授权。
+- 没有活跃权限订阅者时默认拒绝，不能因 UI 缺席而放行。
+- 传给 Renderer 的工具输入先脱敏并限制长度。
+- application dispose 时，所有待处理请求以拒绝结束；失去 UI 订阅不能默认放行。
+- 危险命令标记只影响 UI 警示，不替代用户授权。
 
-负责应用级认证交互：
+## 认证与恢复
 
-- provider 状态映射。
-- OAuth 与 API key 登录。
-- 同一 provider 操作串行化。
-- `AbortController` 和取消。
-- text、secret、manual code、select prompt 的 pending promise。
-- Pi auth event 到 RPC authentication event 的转换。
-- dispose 时取消全部活跃登录和输入请求。
+`registerPiOAuthFlows()` 必须在创建 `ModelRuntime` 前执行，保证打包后的 Bun 主进程能使用静态 OAuth loader。
 
-### `app/workspace/`
+同一 provider 的登录和 prompt 发送通过 `withProviderOperation()` 串行，避免登录刷新凭据与模型请求竞争。认证 URL 由 desktop owner 打开；device code、进度和交互式 prompt 作为事件发送给 Renderer；凭据本身从不离开 Pi runtime。
 
-负责 workspace 用例：
+只有明确的 `authentication-resolution-failed` 可以触发恢复：回到失败 assistant message 的父节点，重新解析当前模型认证，然后调用一次 `agent.continue()`。通用模型错误、限流、工具错误和恢复自身失败都不重试。
 
-- 打开并检查 Pi workspace resources。
-- 汇总 extensions、skills、prompts、context files 和 diagnostics。
-- refresh 时重建当前 workspace 的 idle sessions。
-- 诊断内容在进入共享 DTO 前脱敏。
-- 文件树与文件预览。
+认证交互由事件驱动：主进程可发送 auth URL、device code、信息、进度以及 text/secret/manual-code/select prompt。每个交互 prompt 使用唯一 ID 等待 Renderer response；取消 provider 登录会 abort 当前 flow，并拒绝该 provider 尚未回答的 prompt。
 
-文件访问规则：
+GitHub Copilot OAuth 在打包 GUI 中依赖 Bun 静态 flow 注册。恢复路径只处理已经分类为 `authentication-resolution-failed` 的失败：等待该轮 settle，导航到失败 assistant message 的父节点，重新解析认证并调用一次 `agent.continue()`。如果树节点不符合预期、认证仍不可用或 continue 失败，直接发送可见错误并清理恢复状态。
 
-- lexical path 和 `realpath` 都必须位于 workspace root。
-- 符号链接不能逃逸 workspace。
-- 隐藏 `.git`、`node_modules` 和构建目录。
-- 文件预览上限为 512 KiB。
-- 二进制文件不作为 UTF-8 文本返回。
+资源诊断和工具摘要只在 application 层转换为共享 DTO；认证文件内容、token、API key、SDK Error 对象和未脱敏输入不得进入 RPC message 或普通诊断日志。
 
-### `app/session/`
+## 生命周期
 
-负责面向 Renderer 的 session 用例：
-
-- list、read transcript、open、create、continue recent。
-- set model、set thinking、prompt、steer、follow-up、abort。
-- Pi snapshot 到共享 RPC DTO 的转换。
-- Pi session event 到共享 event DTO 的转换。
-- 工具授权 pending request。
-- OAuth authentication-resolution failure 恢复。
-
-`permissions.ts` 是应用策略：read、grep、find、ls 默认放行，其余工具请求 UI 决策；危险 bash 命令单独标记。Pi SDK 只接收中立的 before-tool-call decision。
-
-`recovery.ts` 以 session path 保存 `retryable → awaiting-settle → recovering` 状态。仅明确的 authentication-resolution failure 进入恢复：回退失败 assistant 的父 entry、重新解析认证并调用 `session.continue()`。
-
-## Pi SDK 边界
-
-`pi/index.ts` 是 App 使用 Pi 能力的公共入口。生命周期能力直接由 class 表达：
-
-- `PiRuntime`
-- `PiAuthentication`
-- `PiWorkspace`
-- `PiSession`
-
-公开数据类型与所属模块共置，不维护集中式 `types.ts`。
-
-### `pi/runtime.ts`
-
-- 创建唯一 `ModelRuntime`。
-- 读取 `~/.pi/agent/auth.json` 和 `models.json`。
-- 缓存规范化 workspace path 对应的 `PiWorkspace`。
-- 持有全局 `PiSessionRegistry`。
-- 统一关闭 session。
-
-### `pi/workspace.ts`
-
-- 校验并规范化 workspace path。
-- 创建共享 `ModelRuntime` 下的 cwd-bound services。
-- 读取 resources 和 diagnostics。
-- 使用 `SessionManager` 列出、读取、打开、创建和继续 session。
-
-### `pi/authentication.ts`
-
-封装 `ModelRuntime.getProviders()`、`checkAuth()` 和 `login()`，输出与 UI/RPC 无关的认证状态、事件和交互 prompt。
-
-### `pi/session/`
-
-```text
-session/
-├── index.ts      # 子模块公共出口
-├── session.ts    # AgentSession 生命周期与命令
-├── registry.ts   # resolved sessionPath → PiSession
-├── snapshot.ts   # session info、conversation、runtime snapshot
-├── events.ts     # AgentSessionEvent → PiSessionEvent[]
-└── hooks.ts      # tool_call extension adapter
-```
-
-核心不变量：
-
-- 一个 `PiSession` 独占一个 live `AgentSession` 和一套 services。
-- 同一规范化 session path 只对应一个 live `PiSession`。
-- rebuild 只作用于 idle session，并恢复仍存在的 selected entry。
-- `prompt()` 在 preflight 接受后返回；模型输出继续通过事件流发送。
-- dispose 先发送 `session_shutdown`，再释放 AgentSession。
-
-## 身份与状态所有权
-
-| 状态 | 所有者 |
-|---|---|
-| `ModelRuntime` | `PiRuntime` |
-| workspace cache | `PiRuntime` |
-| live session map | `PiSessionRegistry` |
-| AgentSession/services/subscription | `PiSession` |
-| provider 操作队列、登录取消、认证输入 | `AuthenticationApplication` |
-| 工具授权 pending promise | `ToolPermissionApplication` |
-| OAuth 恢复状态 | `SessionRecovery` |
-| RPC subscriptions | `PiRpcBinding` |
-| BrowserWindow/frame saver | Desktop 层 |
+1. 入口注册 OAuth flows，创建 `PiRuntime`、`Application`、desktop system 和 RPC binding。
+2. 主窗口关闭只释放窗口自身状态；macOS reopen 可以创建新窗口并复用进程级 runtime。
+3. `before-quit` 首次阻止退出，解除 RPC/application 订阅并拒绝待处理交互，然后释放所有 `PiSession` 和 SDK services。
+4. 清理完成后调用 `Utils.quit()`；所有 dispose 操作必须幂等。
 
 ## 安全边界
 
-- 凭据和 auth 文件不离开 Pi SDK / 主进程。
-- RPC 只发送 provider 可用性、认证类型和受控交互事件。
-- resource diagnostics 与工具输入摘要在主进程脱敏。
-- 文件访问在主进程验证 workspace 边界。
-- Pi 错误在 `pi/errors.ts` 分类，App 不依赖上游错误类型。
+- 凭据、完整 `auth.json`、SDK 对象和原始敏感错误不进入 RPC DTO。
+- 工作区文件路径必须由主进程解析并约束在目标 workspace 内。
+- 外部 URL、文件选择器和窗口操作只通过 `DesktopSystem`。
+- 资源诊断、工具输入和可见错误在跨进程前脱敏。
 
-## Import 与构建
+## 修改与验证
 
-主进程使用无 `/index` 后缀的目录入口：
-
-```ts
-import { Application } from "@main/app";
-import { PiRuntime } from "@main/pi";
-import { createPiRpc } from "@main/rpc";
-```
-
-`electrobun.config.ts` 的 Bun plugin 依次解析文件、带扩展名文件和目录入口文件，避免把目录路径直接交给 bundler。
+- SDK 行为变化：先核对当前安装版本文档、类型声明和实现，再修改 `pi/`。
+- 新用例：放入对应 application owner；需要跨进程时再扩展 shared contract 和 RPC adapter。
+- session 生命周期、认证、权限或恢复变化：运行对应 `src/bun/**` 测试及 `bun run verify`。
+- OAuth、系统对话框、窗口 reopen/quit 或真实 provider 流程还需要打包桌面环境验证。
