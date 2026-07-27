@@ -1,101 +1,63 @@
-import Electrobun, { BrowserWindow, Updater } from "electrobun/bun";
-import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
-import { PiWorkspaceService } from "@main/workspace/service";
-import { createPiRpc } from "@main/rpc/pi-rpc";
-import { HomeWindowStateSaver, loadHomeWindowFrame, type HomeWindowFrame } from "@main/window-state";
+import Electrobun, { BrowserWindow, Utils } from "electrobun/bun";
+import { Application } from "@main/app";
+import { createMainWindow } from "@main/desktop/main-window";
+import { createDesktopSystem } from "@main/desktop/system";
+import { resolveMainViewUrl } from "@main/desktop/view-url";
+import { PiRuntime, registerPiOAuthFlows } from "@main/pi";
+import { createPiRpc } from "@main/rpc";
 
-const DEV_SERVER_PORT = 5173;
-const DEV_SERVER_URL = `http://localhost:${DEV_SERVER_PORT}`;
-const DEV_SERVER_STARTUP_ATTEMPTS = 30;
-const DEV_SERVER_RETRY_DELAY_MS = 100;
-const DEFAULT_HOME_WINDOW_FRAME: HomeWindowFrame = {
-	x: 200,
-	y: 200,
-	width: 1200,
-	height: 800,
-};
+registerPiOAuthFlows();
 
-// Electrobun bundles the Bun main process. Pi's OAuth implementations use a
-// bundler-opaque import, so register the static Bun loaders before any runtime.
-registerBunOAuthFlows();
-
-async function waitForDevServer(): Promise<boolean> {
-	for (let attempt = 0; attempt < DEV_SERVER_STARTUP_ATTEMPTS; attempt += 1) {
-		try {
-			await fetch(DEV_SERVER_URL, { method: "HEAD" });
-			return true;
-		} catch {
-			if (attempt < DEV_SERVER_STARTUP_ATTEMPTS - 1) await Bun.sleep(DEV_SERVER_RETRY_DELAY_MS);
-		}
-	}
-	return false;
-}
-
-async function getMainViewUrl(): Promise<string> {
-	const channel = await Updater.localInfo.channel();
-	if (channel === "dev") {
-		if (await waitForDevServer()) {
-			console.log(`HMR enabled: Using Vite dev server at ${DEV_SERVER_URL}`);
-			return DEV_SERVER_URL;
-		}
-		console.log("Vite dev server unavailable. Falling back to the bundled main view.");
-	}
-	return "views://mainview/index.html";
-}
-
-// Create the main application window
-const url = await getMainViewUrl();
-const workspaceService = new PiWorkspaceService();
-const piRpc = createPiRpc(workspaceService);
+const pi = await PiRuntime.create();
+const app = new Application(pi);
+const desktop = createDesktopSystem();
+const rpcBinding = createPiRpc({ app, desktop });
+const url = await resolveMainViewUrl();
 
 let mainWindow: BrowserWindow | undefined;
-type WindowMoveEvent = {
-	data: {
-		x: number;
-		y: number;
-	};
-};
+let disposing = false;
+let disposed = false;
 
-type WindowResizeEvent = {
-	data: HomeWindowFrame;
-};
-
-function createHomeWindow(): BrowserWindow {
-	let homeWindowFrame = loadHomeWindowFrame() ?? DEFAULT_HOME_WINDOW_FRAME;
-	const stateSaver = new HomeWindowStateSaver();
-	const homeWindow = new BrowserWindow({
-		rpc: piRpc,
-		title: "Oh Your Pi",
+function openMainWindow(): void {
+	let window: BrowserWindow;
+	window = createMainWindow({
+		rpc: rpcBinding.rpc,
 		url,
-		titleBarStyle: "hiddenInset",
-		frame: homeWindowFrame,
+		onClose() {
+			if (mainWindow === window) mainWindow = undefined;
+		},
 	});
-
-	stateSaver.flush(homeWindowFrame);
-	homeWindow.on("move", (event) => {
-		const moveEvent = event as WindowMoveEvent;
-		homeWindowFrame = { ...homeWindowFrame, x: moveEvent.data.x, y: moveEvent.data.y };
-		stateSaver.schedule(homeWindowFrame);
-	});
-	homeWindow.on("resize", (event) => {
-		const resizeEvent = event as WindowResizeEvent;
-		homeWindowFrame = resizeEvent.data;
-		stateSaver.schedule(homeWindowFrame);
-	});
-	homeWindow.on("close", () => {
-		stateSaver.flush(homeWindowFrame);
-		if (homeWindow === mainWindow) mainWindow = undefined;
-	});
-
-	return homeWindow;
+	mainWindow = window;
 }
 
-mainWindow = createHomeWindow();
+async function disposeApplication(): Promise<void> {
+	rpcBinding.dispose();
+	try {
+		await app.dispose();
+	} finally {
+		await pi.dispose();
+	}
+}
+
+openMainWindow();
 
 if (process.platform === "darwin") {
 	Electrobun.events.on("reopen", () => {
-		if (!mainWindow) mainWindow = createHomeWindow();
+		if (!mainWindow) openMainWindow();
 	});
 }
+
+Electrobun.events.on("before-quit", (event) => {
+	if (disposed) return;
+	event.response = { allow: false };
+	if (disposing) return;
+	disposing = true;
+	void disposeApplication()
+		.catch((error) => console.error("关闭主进程资源失败。", error))
+		.finally(() => {
+			disposed = true;
+			Utils.quit();
+		});
+});
 
 console.log("Oh Your Pi started!");

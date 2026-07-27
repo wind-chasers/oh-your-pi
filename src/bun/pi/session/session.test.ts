@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import { startSessionPrompt } from "@main/pi/prompt";
+import { submitSessionPrompt } from "./session";
 
 test("在 Pi 接受 prompt 后立即返回，不等待完整回复", async () => {
 	let completeRun: (() => void) | undefined;
@@ -13,7 +13,7 @@ test("在 Pi 接受 prompt 后立即返回，不等待完整回复", async () =>
 		},
 	};
 
-	await startSessionPrompt(session, "Reply with exactly OK.", () => {
+	await submitSessionPrompt(session, "Reply with exactly OK.", () => {
 		throw new Error("不应在成功流式运行时报告错误。");
 	});
 	expect(completeRun).toBeDefined();
@@ -22,7 +22,7 @@ test("在 Pi 接受 prompt 后立即返回，不等待完整回复", async () =>
 
 test("Pi 在接受前拒绝 prompt 时向调用方报告失败", async () => {
 	const rejection = new Error("authentication failed");
-	const reported: unknown[] = [];
+	const reported: Error[] = [];
 	const session = {
 		prompt: (_text: string, options?: Parameters<AgentSession["prompt"]>[1]) => {
 			options?.preflightResult?.(false);
@@ -30,7 +30,8 @@ test("Pi 在接受前拒绝 prompt 时向调用方报告失败", async () => {
 		},
 	};
 
-	await expect(startSessionPrompt(session, "hello", (error) => reported.push(error))).rejects.toThrow("Pi 未接受这条消息。");
+	await expect(submitSessionPrompt(session, "hello", (error) => reported.push(error)))
+		.rejects.toThrow("Pi 未接受这条消息。");
 	await Promise.resolve();
 	expect(reported).toEqual([rejection]);
 });

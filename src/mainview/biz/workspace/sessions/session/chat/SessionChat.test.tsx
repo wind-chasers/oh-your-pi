@@ -20,7 +20,7 @@ mock.module("electrobun/view", () => ({
 (globalThis as { window?: unknown }).window = {};
 
 // Dynamic loading is required so the Electrobun mock is installed first.
-const { SessionChat } = await import("../index");
+const { SessionChat } = await import("..");
 
 const session: PiSessionSummary = {
 	id: "session-id",

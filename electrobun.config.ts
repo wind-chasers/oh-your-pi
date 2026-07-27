@@ -1,5 +1,5 @@
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 import type { BunPlugin } from "bun";
 import type { ElectrobunConfig } from "electrobun";
 import packageJson from "./package.json";
@@ -20,11 +20,17 @@ function resolveProjectAlias(importPath: string): string | undefined {
 	if (!directory) return;
 
 	const sourcePath = resolve(directory, ...segments);
-	if (existsSync(sourcePath)) return sourcePath;
+	if (existsSync(sourcePath) && statSync(sourcePath).isFile()) return sourcePath;
 
 	for (const extension of resolvableExtensions) {
 		const sourceFile = `${sourcePath}${extension}`;
 		if (existsSync(sourceFile)) return sourceFile;
+	}
+
+	if (!existsSync(sourcePath) || !statSync(sourcePath).isDirectory()) return;
+	for (const extension of resolvableExtensions) {
+		const indexFile = join(sourcePath, `index${extension}`);
+		if (existsSync(indexFile)) return indexFile;
 	}
 }
 

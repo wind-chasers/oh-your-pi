@@ -17,7 +17,7 @@ Oh Your Pi 不重新实现 Agent。它通过 Pi SDK 直接使用你已有的 Pi 
 - **工作区与会话管理**：浏览工作区会话，创建、打开或继续最近会话，并读取同一项目下的 Pi 原生会话记录。
 - **实时对话体验**：流式展示文本、思考过程与工具执行状态；支持发送、引导、跟进和中止会话。
 - **模型与授权控制**：选择模型和思考级别；需要授权的工具调用可在界面确认，危险操作会给出明确提示。
-- **进程隔离**：React 渲染进程不直接访问 Pi SDK、文件系统或凭据；所有请求经受 Zod 校验的 Electrobun RPC 进入 Bun 主进程。
+- **进程隔离**：React 渲染进程不直接访问 Pi SDK、文件系统或凭据；所有请求经 TypeScript 类型约束的 Electrobun RPC 进入 Bun 主进程。
 - **记住窗口位置**：窗口位置和尺寸保存到 `~/.pi/oh-your-pi/window.json`，下次启动时自动恢复。
 
 ## 技术栈
@@ -64,5 +64,5 @@ Pi 是数据的唯一事实来源。应用不会建立平行的会话、插件�
 src/
 ├── bun/        # Bun 主进程、Pi SDK 适配与 Electrobun RPC
 ├── mainview/   # React 渲染进程与界面
-└── shared/     # 跨进程 Zod DTO 与 RPC 契约
+└── shared/     # 跨进程 TypeScript DTO 与 RPC 契约
 ```
