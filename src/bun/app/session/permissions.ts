@@ -28,10 +28,10 @@ export class ToolPermissionApplication {
 			toolCallId: call.toolCallId,
 			toolName: call.toolName,
 		});
-		return {
-			allowed,
-			...(!allowed ? { reason: "用户拒绝了 Oh Your Pi 工具授权。" } : {}),
-		};
+		if (!allowed) {
+			return { allowed: false, reason: "用户拒绝了 Oh Your Pi 工具授权。" };
+		}
+		return { allowed: true };
 	}
 
 	respond(input: PiToolPermissionResponse): PiToolPermissionResolution {

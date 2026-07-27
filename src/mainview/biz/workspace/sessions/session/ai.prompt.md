@@ -1,83 +1,70 @@
 # Session 会话界面
 
-本目录拥有一个已打开 session 的交互界面：完整 transcript 展示、当前轮次增量状态、输入命令、模型/thinking 选择和工具授权。它不打开工作区、不选择持久 session，也不保存 Pi 的持久事实。
+本目录展示并操作一个已选定的 session。会话事实、流式状态、工具授权和命令生命周期属于 [`../../../../chat-store/ai.prompt.md`](../../../../chat-store/ai.prompt.md)；组件只通过 `useChatSession()` 和 `ChatSession` 消费，不直接调用 session RPC 或订阅主进程事件。
 
-## 状态分层
+## 接入边界
 
-`openedSession` Props 是主进程返回的稳定基线：
+`WorkspacePage` 只把已选中的 `workspacePath + sessionId + sessionPath` 传给 `SessionChat`。`SessionChat` 调用：
 
-- `transcript.entries`：最近一次完整刷新后的持久内容。
-- `runtime`：session identity、模型、thinking 和 streaming 状态。
-
-`SessionChat` 内部状态只表达尚未并入完整 transcript 的当前轮次：
-
-- `pendingUserMessage`
-- `streamedText` 与 `thinkingText`
-- tool call 状态表
-- permission request 队列
-- draft、sending、streaming 和局部错误
-
-切换 `sessionPath` 时必须清空上一会话的所有增量文本、tool 和 permission 状态，并以新 `openedSession.runtime.isStreaming` 初始化界面。
-
-## Event 处理
-
-```mermaid
-stateDiagram-v2
-  [*] --> Idle
-  Idle --> Streaming: local prompt / agent_start
-  Streaming --> Streaming: text · thinking · tool events
-  Streaming --> Failed: error
-  Streaming --> Settled: agent_settled
-  Settled --> Idle: refresh transcript
-  Failed --> Idle: next prompt / refresh
+```ts
+useChatSession(workspacePath, sessionId, sessionPath)
 ```
 
-每个 session event 和 permission request 都必须先比较 `sessionPath`；不属于当前打开 session 的事件直接忽略。
+获得 `[snapshot, session]`：
 
-- `agent_start`：清空上一轮增量状态并进入 streaming。
-- `assistant_text_delta` / `assistant_thinking_delta`：按到达顺序追加。
-- `tool_start` / `tool_end`：按 `toolCallId` 更新同一工具状态。
-- `error`：显示错误、移除乐观 user message 并退出 streaming。
-- `agent_settled`：清空临时状态、退出 streaming，并请求 controller 重新读取完整 transcript。
+- `snapshot.openedSession`：持久 transcript 与 runtime 基线。
+- `snapshot.streamedText`、`thinkingText`、`tools`：当前轮尚未写回 transcript 的增量。
+- `snapshot.pendingUserMessage`：乐观提交的用户消息。
+- `snapshot.permissionRequests`：当前会话待处理授权队列。
+- `snapshot.isSending`、`isRefreshing`、`error`：会话请求状态。
+- `session.view.items`：由 `SessionView` 缓存的持久 render items。
 
-`agent_end` 不是最终刷新点；恢复逻辑可能仍在主进程继续，只有 `agent_settled` 表示该轮稳定。
+组件内部只保留输入框 `draft`、文件树开关等纯 UI 状态。切换 session identity 时由父组件 key 触发重建；后台 session 继续由 Chat Store 接收事件，不随界面卸载终止。
 
-## 输入语义
+## 用户意图
 
-- idle 时提交：先显示 `pendingUserMessage`，乐观进入 streaming，再调用 `promptPiSession()`。
-- streaming 时普通提交：调用 `steerPiSession()`，把文本送入当前轮次。
-- streaming 时 follow-up：调用 `followUpPiSession()`，排入下一轮。
-- abort：调用主进程后退出本地 streaming；最终 transcript 仍以之后的刷新结果为准。
-- 空文本、重复 sending、没有可用凭据或当前模型没有可用认证时不发送。
+- idle 提交：`session.prompt(text)`。
+- streaming 普通提交：`session.steer(text)`。
+- streaming follow-up：`session.followUp(text)`。
+- abort：`session.abort()`。
+- 模型与 thinking：`session.setModel()` / `session.setThinking()`。
+- 工具授权：`session.respondToPermission()`。
 
-不要等待 `promptPiSession()` 返回完整回复；它只确认主进程接受命令。输出完全由 event subscription 驱动。
+`ChatSession` 负责校验阶段、调用 RPC、发布 loading/error 和合并返回状态；组件捕获 rejected promise 只为避免未处理拒绝，不再复制错误或回滚状态。
 
-## 工具授权
+## Transcript 与工具渲染
 
-permission request 按到达顺序排队，界面一次展示队首请求。带 `toolCallId` 的请求同时把对应工具标记为 `awaiting_permission`。提交允许/拒绝后，只有主进程确认 response 成功才从队列移除；拒绝会将对应工具标记为失败完成。
+`SessionView` 是持久消息到渲染项的唯一翻译 owner：
 
-切换 session 时丢弃本地队列，但不能伪造 response。真正 pending permission 的生命周期和默认拒绝策略属于 Bun 主进程。
+- 普通 item 保存原消息的 `messageIndex`，无需 session tree ID。
+- assistant toolCall 按 SDK tool call ID 关联独立 toolResult。
+- 相邻工具调用合并为一个 `tool-section`。
+- render items 按 transcript messages 对象身份缓存，切回会话时直接复用。
+
+`ChatTranscript` 只分发 `SessionViewItem[]`，再把当前轮临时文本与 `snapshot.tools` 接到末尾，不扫描线性 transcript，也不实现第二份合并规则。
+
+`chat/tools/` 拥有统一工具外壳：折叠 chip、单项详情与全部展开视图。registry 只能覆盖 chip/input/output 点位，不能替换 section 布局。`AnimatedHeight` 用 ResizeObserver 跟踪自然高度，并在过渡期间维持普通顺序滚动容器的元素锚点或底部距离。
 
 ## 组件边界
 
-- `index.tsx`：订阅、状态机和命令协调。
-- `chat/ChatTranscript.tsx`：组合持久 entries 与当前增量内容。
-- `chat/messages/`：按消息类型渲染，不发起 RPC。
-- `chat/ChatComposer.tsx`：输入、发送动作和模型可用性展示。
-- `chat/ModelThinkingSelector.tsx`：模型与 thinking 选择；运行中禁止切换。
-- `chat/ToolPermissionPrompt.tsx`：只展示当前 permission 并返回决定。
-- `settings/`、`export/`：session 附属界面；不能各自维护第二份 transcript。
-
-只有本目录的会话协调层调用 session command/event API。展示组件通过 Props 工作，不直接订阅 `pi-client`。
+- `index.tsx`：把 Chat Store snapshot/session 适配给展示组件并转发用户意图。
+- `chat/ChatTranscript.tsx`：分发 `SessionViewItem[]`，组合当前轮临时输出。
+- `chat/messages/`：普通消息展示。
+- `chat/tools/`：工具 section、详情骨架、动画、renderer registry。
+- `chat/ChatComposer.tsx`：draft、发送动作和模型可用性展示。
+- `chat/ModelThinkingSelector.tsx`：通过 `ChatSession` 修改模型和 thinking。
+- `chat/ToolPermissionPrompt.tsx`：展示队首授权并返回决定。
+- `settings/`、`export/`：session 附属界面，不持有第二份 transcript。
 
 ## 验证
 
-行为变化应覆盖：
+行为变化至少覆盖：
 
-- 切换 session 后旧 event 和 permission 不污染新会话。
-- prompt 的乐观 user message、请求失败回滚和 settled 后完整刷新。
-- text/thinking 增量拼接和 tool 状态转换。
-- streaming 时 steer、follow-up、abort 的区别。
-- 缺少凭据或模型时显示认证入口而不是可用发送动作。
+- `SessionView` 的结果关联、相邻工具合并与缓存复用。
+- 切换 session 后旧流仍留在原 `ChatSession`，不会污染当前界面。
+- prompt、steer、follow-up、abort 的阶段差异。
+- settled refresh 完成前增量内容不闪空，完成后正确清理对应 generation。
+- 工具授权队列和拒绝状态。
+- 缺少凭据时显示认证入口。
 
-优先扩展 `chat/SessionChat.test.tsx` 中可观察 UI 合约；涉及真实 event/RPC 时使用 Renderer 路径验证，最终运行 `bun run verify`。
+优先运行 chat-store 共置测试和 `chat/SessionChat.test.tsx`，最终运行 `bun run verify`；布局和高度动画使用真实 Renderer 路径验证。

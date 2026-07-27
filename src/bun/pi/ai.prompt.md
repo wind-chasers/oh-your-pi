@@ -24,15 +24,14 @@ flowchart TD
 
 - `runtime.ts`：创建共享 SDK runtime、规范化工作区、管理顶层释放；OAuth flow 注册函数也从这里暴露。
 - `workspace.ts`：资源检查、持久 session 列表/读取，以及创建、打开、继续最近 session。
-- `authentication.ts`：把 SDK provider 登录能力转换为不依赖 UI 的交互接口。
+- `authentication.ts`：只包装 provider 查询与登录入口，登录交互直接使用 Pi AI `AuthInteraction` / `AuthEvent` / `AuthPrompt`，不维护中间事件类型。
 - `session/registry.ts`：live session 身份与并发打开控制。
-- `session/session.ts`：`AgentSession` 生命周期和命令。
-- `session/events.ts`：SDK event 到 Pi 领域 event。
-- `session/snapshot.ts`：从 SDK session/services 构造领域 snapshot。
+- `session/session.ts`：拥有 `AgentSession` 生命周期和命令，直接转发 SDK `AgentSessionEvent`，只为 SDK prompt promise 的异步失败补充内部 `error` event。
+- `session/snapshot.ts`：从 `AgentSession.messages` 构造共享线性 transcript；直接使用 Pi AI 与 Agent Core 的精确消息类型，只过滤隐藏 custom message，并移除 assistant `diagnostics` 与 tool/custom arbitrary `details`。
 - `session/hooks.ts`：把上层授权 hook 注入 SDK extension。
 - `errors.ts`：只分类项目需要特殊处理的 Pi 错误。
 
-`index.ts` 是本领域的显式公共面。不要为了缩短 import 暴露 SDK 原始类型或内部 registry/service。
+`index.ts` 是本领域的显式公共面。优先直接暴露 SDK 已有事实类型；只有项目新增语义时才定义新的 Pi 类型，不暴露内部 registry/service。
 
 ## Session 生命周期
 
@@ -55,9 +54,9 @@ flowchart TD
 
 ## 依赖边界
 
-- 可以依赖 Node/Bun 标准能力和 Pi SDK。
-- 不导入 `@shared` DTO、Electrobun、Renderer 或 `src/bun/app`。
-- 对上暴露 Pi 领域对象和类型；跨进程 DTO 映射由 application 层完成。
+- 可以运行时依赖 Node/Bun 标准能力和 Pi SDK；可以 type-only 依赖 `@shared` 输出契约。
+- 不依赖 Electrobun、Renderer 或 `src/bun/app`，不把 UI 策略放入 Pi 生命周期 owner。
+- SDK 类型若已满足需求就直接复用；只有 RPC 不安全字段才在 shared 契约中派生严格子集，并在本层执行唯一一次裁剪。
 - 不复制 Pi 的 auth、models、resources 或 session 数据库，也不自行解析 JSONL 代替 SDK。
 - 不增加只转发一次调用的 interface/factory；生命周期 owner 使用具体 class 表达。
 

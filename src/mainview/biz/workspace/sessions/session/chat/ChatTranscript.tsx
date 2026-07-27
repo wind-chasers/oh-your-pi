@@ -1,31 +1,30 @@
-import { Sparkles, Waypoints } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { type ReactElement } from "react";
-import type { PiConversationEntry } from "@shared/pi-contract";
+import {
+	getSessionViewItemKey,
+	type ChatToolCall,
+	type SessionViewItem,
+} from "@view/chat-store";
 import { MarkdownContent } from "@view/components/markdown-content";
 import { AssistantMessage } from "./messages/AssistantMessage";
 import { SystemMessage } from "./messages/SystemMessage";
 import { ToolMessage } from "./messages/ToolMessage";
 import { UserMessage } from "./messages/UserMessage";
-
-export type ToolStatus = {
-	isError: boolean | undefined;
-	name: string;
-	status: "awaiting_permission" | "running" | "complete";
-};
+import { ToolCallsSection } from "./tools/ToolCallsSection";
 
 type ChatTranscriptProps = {
-	entries: PiConversationEntry[];
+	items: readonly SessionViewItem[];
 	isStreaming: boolean;
 	pendingUserMessage?: string;
 	showThinking: boolean;
 	streamedText: string;
 	thinkingText: string;
-	tools: Array<[string, ToolStatus]>;
+	tools: readonly ChatToolCall[];
 	transcriptEndRef: React.RefObject<HTMLDivElement | null>;
 };
 
 export function ChatTranscript({
-	entries,
+	items,
 	isStreaming,
 	pendingUserMessage,
 	showThinking,
@@ -34,38 +33,35 @@ export function ChatTranscript({
 	tools,
 	transcriptEndRef,
 }: ChatTranscriptProps): ReactElement {
+	let lastToolSectionIndex = -1;
+	for (let index = items.length - 1; index >= 0; index -= 1) {
+		if (items[index].type !== "tool-section") continue;
+		lastToolSectionIndex = index;
+		break;
+	}
+
 	return (
 		<div className="relative min-h-0 flex-1">
-			<div aria-live="polite" className="h-full overflow-y-auto px-5 py-6">
+			<div aria-live="polite" className="chat-scroll-container h-full overflow-y-auto [overflow-anchor:none] px-5 py-6">
 				<div className="mx-auto flex max-w-3xl flex-col gap-5">
-					{entries.map((entry) => (
-						<ConversationEntry entry={entry} key={entry.id} />
+					{items.map((item, index) => (
+						<ConversationRenderItem
+							isLive={isStreaming && tools.length === 0 && index === lastToolSectionIndex}
+							item={item}
+							key={getSessionViewItemKey(item)}
+						/>
 					))}
 					{pendingUserMessage ? (
 						<PendingUserMessage text={pendingUserMessage} />
 					) : null}
-					{isStreaming && !streamedText ? <StreamingPlaceholder /> : null}
-					{isStreaming && streamedText ? (
+					{isStreaming && !streamedText && tools.length === 0 ? <StreamingPlaceholder /> : null}
+					{streamedText ? (
 						<StreamingAssistantMessage text={streamedText} />
 					) : null}
-					{showThinking && isStreaming && thinkingText ? (
+					{showThinking && thinkingText ? (
 						<StreamingThinking text={thinkingText} />
 					) : null}
-					{isStreaming && tools.length > 0 ? (
-						<section
-							aria-label="工具执行时间线"
-							className="rounded-lg border bg-muted/30 p-3"
-						>
-							<p className="text-xs font-medium text-muted-foreground">
-								工具执行
-							</p>
-							<div className="mt-2 space-y-2">
-								{tools.map(([toolCallId, tool]) => (
-									<ToolCallStatus key={toolCallId} tool={tool} />
-								))}
-							</div>
-						</section>
-					) : null}
+					{tools.length > 0 ? <ToolCallsSection isLive={isStreaming} toolCalls={tools} /> : null}
 					<div ref={transcriptEndRef} />
 				</div>
 			</div>
@@ -77,16 +73,26 @@ export function ChatTranscript({
 	);
 }
 
-function ConversationEntry({ entry }: { entry: PiConversationEntry }): ReactElement {
-	switch (entry.role) {
-		case "user": return <UserMessage text={entry.text} />;
-		case "assistant": return <AssistantMessage text={entry.text} thinking={entry.thinking} />;
-		case "system": return <SystemMessage text={entry.text} />;
-		case "tool": return <ToolMessage label="工具结果" text={entry.text} />;
-		case "bash": return <ToolMessage label="Bash" text={entry.text} />;
-		case "custom": return <ToolMessage label="扩展" text={entry.text} />;
+function ConversationRenderItem({ isLive, item }: {
+	isLive: boolean;
+	item: SessionViewItem;
+}): ReactElement {
+	switch (item.type) {
+		case "user":
+			return <UserMessage text={item.text} />;
+		case "assistant":
+			return <AssistantMessage text={item.text} thinking={item.thinking} />;
+		case "system":
+			return <SystemMessage text={item.text} />;
+		case "bash":
+			return <ToolMessage label="Bash" text={item.message.output} />;
+		case "custom":
+			return <ToolMessage label="扩展" text={item.text} />;
+		case "tool-section":
+			return <ToolCallsSection isLive={isLive} toolCalls={item.toolCalls} />;
 	}
 }
+
 function PendingUserMessage({ text }: { text: string }): ReactElement {
 	return (
 		<article className="ml-auto w-fit max-w-[85%]">
@@ -126,20 +132,4 @@ function StreamingThinking({ text }: { text: string }): ReactElement {
 			</div>
 		</article>
 	);
-}
-function ToolCallStatus({ tool }: { tool: ToolStatus }): ReactElement {
-	return (
-		<div className="flex items-center gap-2 rounded-md bg-background px-3 py-2 text-xs">
-			<Waypoints aria-hidden className="size-3.5 text-muted-foreground" />
-			<span>{tool.name}</span>
-			<span className="ml-auto text-muted-foreground">
-				{formatToolStatus(tool)}
-			</span>
-		</div>
-	);
-}
-function formatToolStatus(tool: ToolStatus): string {
-	if (tool.status === "awaiting_permission") return "等待授权";
-	if (tool.status === "running") return "执行中";
-	return tool.isError ? "失败" : "已完成";
 }

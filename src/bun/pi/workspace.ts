@@ -5,32 +5,20 @@ import {
 	SessionManager,
 	type SessionInfo,
 } from "@earendil-works/pi-coding-agent";
+import type {
+	PiExtensionResource,
+	PiResourceDiagnostic,
+	PiResourceItem,
+	PiSessionSummary,
+	PiSessionTranscript,
+} from "@shared/pi-contract";
 import { PiSessionRegistry } from "./session/registry";
 import {
 	PiSession,
-	type PiConversationEntry,
 	type PiSessionHooks,
-	type PiSessionInfo,
-	toPiConversationEntry,
-	toPiSessionInfo,
+	toPiSessionMessages,
+	toPiSessionSummary,
 } from "./session";
-
-export type PiResourceDiagnostic = {
-	type: "info" | "warning" | "error";
-	message: string;
-};
-
-export type PiResourceItem = {
-	name: string;
-	path: string;
-	scope: "user" | "project" | "temporary";
-	source: string;
-};
-
-export type PiExtensionResource = PiResourceItem & {
-	commands: string[];
-	tools: string[];
-};
 
 export type PiResourceSnapshot = {
 	agentDir: string;
@@ -102,15 +90,16 @@ export class PiWorkspace {
 		};
 	}
 
-	async listSessions(): Promise<PiSessionInfo[]> {
-		return (await SessionManager.list(this.path)).map(toPiSessionInfo);
+	async listSessions(): Promise<PiSessionSummary[]> {
+		return (await SessionManager.list(this.path)).map(toPiSessionSummary);
 	}
 
-	async readSession(sessionPath: string): Promise<{ info: PiSessionInfo; entries: PiConversationEntry[] }> {
+	async readSession(sessionPath: string): Promise<PiSessionTranscript> {
 		const info = await this.findSession(sessionPath);
+		const messages = SessionManager.open(info.path).buildSessionContext().messages;
 		return {
-			info: toPiSessionInfo(info),
-			entries: SessionManager.open(info.path).getBranch().flatMap(toPiConversationEntry),
+			session: toPiSessionSummary(info),
+			messages: toPiSessionMessages(messages),
 		};
 	}
 

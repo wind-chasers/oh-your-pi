@@ -2,20 +2,20 @@ import {
 	createAgentSessionFromServices,
 	createAgentSessionServices,
 	type AgentSession,
+	type AgentSessionEvent,
 	type AgentSessionServices,
 	type ModelRuntime,
 	SessionManager,
 	type SessionInfo,
 	type SessionTreeNode,
 } from "@earendil-works/pi-coding-agent";
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import type { PiOpenedSession } from "@shared/pi-contract";
 import { PiError, toError } from "../errors";
-import { toPiSessionEvents, type PiSessionEvent } from "./events";
 import { createSessionExtensionFactories, type PiSessionHooks } from "./hooks";
-import {
-	createPiSessionSnapshot,
-	type PiSessionSnapshot,
-	type PiThinkingLevel,
-} from "./snapshot";
+import { createPiOpenedSession } from "./snapshot";
+
+export type PiSessionEvent = AgentSessionEvent | { type: "error"; error: Error };
 
 type CreatePiSessionOptions = {
 	agentDir: string;
@@ -59,8 +59,8 @@ export class PiSession {
 		return this.requireAgentSession().isIdle;
 	}
 
-	getSnapshot(): PiSessionSnapshot {
-		return createPiSessionSnapshot({
+	getSnapshot(): PiOpenedSession {
+		return createPiOpenedSession({
 			baseInfo: this.options.sessionInfo,
 			path: this.path,
 			services: this.requireServices(),
@@ -75,13 +75,13 @@ export class PiSession {
 		await this.requireAgentSession().setModel(model);
 	}
 
-	setThinking(level: PiThinkingLevel): void {
+	setThinking(level: ThinkingLevel): void {
 		this.requireAgentSession().setThinkingLevel(level);
 	}
 
 	async prompt(text: string): Promise<void> {
 		await submitSessionPrompt(this.requireAgentSession(), text, (error) => {
-			this.emit({ sessionPath: this.path, type: "error", error });
+			this.emit({ type: "error", error });
 		});
 	}
 
@@ -154,9 +154,7 @@ export class PiSession {
 		this.agentSession = session;
 		this.sessionPath = requireSessionPath(session);
 		await session.bindExtensions({});
-		this.unsubscribeAgent = session.subscribe((event) => {
-			for (const sessionEvent of toPiSessionEvents(this.path, event)) this.emit(sessionEvent);
-		});
+		this.unsubscribeAgent = session.subscribe((event) => this.emit(event));
 	}
 
 	private async disposeRuntime(): Promise<void> {
@@ -212,4 +210,3 @@ function requireSessionPath(session: AgentSession): string {
 function hasTreeEntry(nodes: SessionTreeNode[], entryId: string): boolean {
 	return nodes.some((node) => node.entry.id === entryId || hasTreeEntry(node.children, entryId));
 }
-

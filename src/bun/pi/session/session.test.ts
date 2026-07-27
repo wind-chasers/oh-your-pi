@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
-import type { AgentSession } from "@earendil-works/pi-coding-agent";
+import type { PromptOptions } from "@earendil-works/pi-coding-agent";
 import { submitSessionPrompt } from "./session";
 
 test("在 Pi 接受 prompt 后立即返回，不等待完整回复", async () => {
 	let completeRun: (() => void) | undefined;
 	const session = {
-		prompt: (_text: string, options?: Parameters<AgentSession["prompt"]>[1]) => {
+		prompt: (_text: string, options?: PromptOptions) => {
 			options?.preflightResult?.(true);
 			const { promise, resolve } = Promise.withResolvers<void>();
 			completeRun = resolve;
@@ -24,7 +24,7 @@ test("Pi 在接受前拒绝 prompt 时向调用方报告失败", async () => {
 	const rejection = new Error("authentication failed");
 	const reported: Error[] = [];
 	const session = {
-		prompt: (_text: string, options?: Parameters<AgentSession["prompt"]>[1]) => {
+		prompt: (_text: string, options?: PromptOptions) => {
 			options?.preflightResult?.(false);
 			return Promise.reject(rejection);
 		},

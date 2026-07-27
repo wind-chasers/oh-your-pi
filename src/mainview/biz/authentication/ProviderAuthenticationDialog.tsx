@@ -1,7 +1,7 @@
 import { type FormEvent, type ReactElement, useEffect, useRef, useState } from "react";
 import type {
+	AuthType,
 	PiAuthenticationEvent,
-	PiAuthenticationMethod,
 	PiAuthenticationStatus,
 } from "@shared/pi-contract";
 import { Button } from "@view/components/ui/button";
@@ -53,7 +53,7 @@ export function ProviderAuthenticationDialog(): ReactElement {
 
 	async function handleLogin(
 		provider: PiAuthenticationStatus,
-		method: PiAuthenticationMethod,
+		method: AuthType,
 	): Promise<void> {
 		setError(undefined);
 		setPromptValue("");

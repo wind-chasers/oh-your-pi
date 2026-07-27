@@ -1,20 +1,20 @@
 import type {
-	PiAuthenticationMethod,
+	AuthType,
 	PiAuthenticationStatus,
 } from "@shared/pi-contract";
 import { atom } from "@view/atom";
+import { chatStore } from "@view/chat-store";
 import {
 	cancelPiProviderLogin,
 	inspectPiAuthentication,
 	loginPiProvider,
-	openPiSession,
 	refreshPiWorkspaceResources,
 } from "@view/lib/pi-client";
 import {
 	AuthenticationBusyAtom,
 	WorkspaceErrorAtom,
 } from "./activity.atom";
-import { OpenedSessionAtom, WorkspaceAtom } from "./current.atom";
+import { SelectedSessionAtom, WorkspaceAtom } from "./current.atom";
 
 export const AuthenticationDialogOpenAtom = atom(false);
 
@@ -35,7 +35,7 @@ export const AuthenticationAtom = atom(
 
 		async function login(
 			provider: string,
-			authType: PiAuthenticationMethod,
+			authType: AuthType,
 		): Promise<void> {
 			const [isAuthenticating, setIsAuthenticating] = use(
 				AuthenticationBusyAtom,
@@ -56,18 +56,14 @@ export const AuthenticationAtom = atom(
 				if (use(WorkspaceAtom)[0]?.workspacePath !== workspacePath) return;
 				setWorkspace(refreshed.snapshot);
 
-				const [openedSession, setOpenedSession] = use(OpenedSessionAtom);
-				if (!openedSession) return;
-				const sessionPath = openedSession.runtime.sessionPath;
-				const reopened = await openPiSession({ sessionPath, workspacePath });
-				const currentWorkspace = use(WorkspaceAtom)[0];
-				const currentSession = use(OpenedSessionAtom)[0];
-				if (
-					currentWorkspace?.workspacePath === workspacePath &&
-					currentSession?.runtime.sessionPath === sessionPath
-				) {
-					setOpenedSession(reopened);
-				}
+				const selection = use(SelectedSessionAtom)[0];
+				if (!selection || selection.workspacePath !== workspacePath) return;
+				const session = chatStore.session(
+					selection.workspacePath,
+					selection.sessionId,
+					selection.sessionPath,
+				);
+				await session.reload();
 			} catch (requestError) {
 				setError(toErrorMessage(requestError, "无法完成 Pi 提供商登录。"));
 				throw requestError;

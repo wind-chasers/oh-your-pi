@@ -2,8 +2,8 @@ import type {
 	PiOpenedSession,
 	PiSessionEvent,
 	PiSessionRuntimeState,
-	PiThinkingLevel,
 	PiToolPermissionRequest,
+	ThinkingLevel,
 } from "@shared/pi-contract";
 import {
 	abortPiSession,
@@ -193,7 +193,7 @@ export class ChatSession {
 		);
 	}
 
-	public async setThinking(thinkingLevel: PiThinkingLevel): Promise<void> {
+	public async setThinking(thinkingLevel: ThinkingLevel): Promise<void> {
 		await this.runOpenedSessionMutation(
 			() => setPiSessionThinking({ sessionPath: this.path, thinkingLevel }),
 			"无法切换思考等级。",

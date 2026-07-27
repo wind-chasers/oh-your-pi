@@ -97,26 +97,25 @@ export class SessionStream {
 						permissionRequests: this.permissionRequests,
 					},
 				};
-			case "assistant_text_delta":
-				this.streamedText += event.text;
+			case "text_delta":
+				this.streamedText += event.delta;
 				return {
 					patch: {
 						openedSession: withRuntime(openedSession, { isStreaming: true }),
 						streamedText: this.streamedText,
 					},
 				};
-			case "assistant_thinking_delta":
-				this.thinkingText += event.text;
+			case "thinking_delta":
+				this.thinkingText += event.delta;
 				return {
 					patch: {
 						openedSession: withRuntime(openedSession, { isStreaming: true }),
 						thinkingText: this.thinkingText,
 					},
 				};
-			case "tool_start":
-			case "tool_update":
+			case "tool_execution_start":
 				return { patch: this.updateTool(event.toolCallId, event.toolName, "running", null) };
-			case "tool_end":
+			case "tool_execution_end":
 				return {
 					patch: this.updateTool(
 						event.toolCallId,
@@ -129,7 +128,7 @@ export class SessionStream {
 				this.pendingUserMessage = null;
 				return {
 					patch: {
-						error: event.text,
+						error: event.errorMessage,
 						openedSession: withRuntime(openedSession, { isStreaming: false }),
 						pendingUserMessage: null,
 					},
@@ -146,9 +145,6 @@ export class SessionStream {
 					},
 					refreshTranscript: true,
 				};
-			case "agent_end":
-			case "message_end":
-				return {};
 		}
 	}
 

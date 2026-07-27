@@ -1,5 +1,5 @@
 import { type ReactElement, useEffect, useState } from "react";
-import { OpenedSessionAtom, WorkspaceAtom } from "@view/states/current.atom";
+import { SelectedSessionAtom, WorkspaceAtom } from "@view/states/current.atom";
 
 import { SessionChat } from "./sessions/session";
 import { FilePreview } from "./files/FilePreview";
@@ -12,7 +12,7 @@ import { WorkspacePlaceholder, WorkspaceReady } from "./WorkspaceEmptyState";
 
 export function WorkspacePage(): ReactElement {
 	const snapshot = WorkspaceAtom.useData();
-	const openedSession = OpenedSessionAtom.useData();
+	const selectedSession = SelectedSessionAtom.useData();
 	const [fileTreeOpen, setFileTreeOpen] = useState(false);
 	const files = useWorkspaceFiles(snapshot?.workspacePath);
 
@@ -36,27 +36,33 @@ export function WorkspacePage(): ReactElement {
 			<div className="flex min-h-0 flex-1 overflow-hidden">
 				{!fileTreeOpen && <SessionList />}
 				<div className="min-w-0 flex-1 overflow-hidden">
-					{openedSession ? (
+					{selectedSession?.workspacePath === snapshot.workspacePath ? (
 						<SessionChat
 							isFileTreeOpen={fileTreeOpen}
+							key={selectedSession.sessionId}
 							onToggleFileTree={() => setFileTreeOpen((value) => !value)}
+							sessionId={selectedSession.sessionId}
+							sessionPath={selectedSession.sessionPath}
+							workspacePath={selectedSession.workspacePath}
 						/>
 					) : (
 						<WorkspaceReady onOpenFiles={() => setFileTreeOpen(true)} />
 					)}
 				</div>
-				{fileTreeOpen ? (
-					<WorkspaceFileExplorer
-						onClose={closeFileTree}
-						onSelectFile={files.selectFile}
-						selectedPath={files.selectedFile?.path}
-						selectionError={files.selectionError}
-						workspacePath={snapshot.workspacePath}
-					/>
-				) : null}
-				{fileTreeOpen && files.selectedFile ? (
-					<FilePreview file={files.selectedFile} onClose={files.clearSelection} />
-				) : null}
+				{fileTreeOpen && (
+					<>
+						<WorkspaceFileExplorer
+							onClose={closeFileTree}
+							onSelectFile={files.selectFile}
+							selectedPath={files.selectedFile?.path}
+							selectionError={files.selectionError}
+							workspacePath={snapshot.workspacePath}
+						/>
+						{files.selectedFile && (
+							<FilePreview file={files.selectedFile} onClose={files.clearSelection} />
+						)}
+					</>
+				)}
 			</div>
 		</section>
 	);

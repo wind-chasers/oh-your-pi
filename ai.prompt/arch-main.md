@@ -47,7 +47,7 @@ src/bun/
 │   ├── runtime.ts                   # ModelRuntime、workspace cache、registry
 │   ├── authentication.ts            # Pi provider 能力
 │   ├── workspace.ts                 # Pi resources 与持久 session 入口
-│   ├── session/                     # AgentSession 生命周期与领域 event
+│   ├── session/                     # AgentSession 生命周期、原始 event 与 RPC 安全消息投影
 │   └── errors.ts                    # 稳定错误分类
 └── utils/
     └── redact-sensitive-text.ts     # 跨边界前的敏感文本脱敏
@@ -65,7 +65,7 @@ src/bun/
 - 每个 `PiSession` 独占一个 `AgentSession` 及其 services，封装模型、thinking、prompt、事件订阅、重建和关闭。
 - `PiAuthentication` 只包装 Pi `ModelRuntime` 的 provider 状态与登录能力，不持有 UI 交互状态。
 
-`pi/` 对外使用自己的领域类型，不导入共享 RPC DTO。SDK 类型到应用 DTO 的转换属于 `app/`。
+`pi/` 优先直接暴露 SDK 精确类型，并可按共享契约裁剪 RPC 不安全字段；不为分层复制同构领域类型。`app/` 只编排用例，并对 SDK event 做一次 wire 投影。
 
 ### `app/`：应用用例层
 
@@ -131,7 +131,7 @@ Pi session 通过 extension hook 在工具执行前进入 `ToolPermissionApplica
 
 - `read`、`grep`、`find`、`ls` 默认允许；其他工具请求 Renderer 明确授权。
 - 没有活跃权限订阅者时默认拒绝，不能因 UI 缺席而放行。
-- 传给 Renderer 的工具输入先脱敏并限制长度。
+- 传给 Renderer 的工具授权摘要先脱敏并限制长度；完整 transcript 仍逐条保留 Pi 的原始消息结构。
 - application dispose 时，所有待处理请求以拒绝结束；失去 UI 订阅不能默认放行。
 - 危险命令标记只影响 UI 警示，不替代用户授权。
 
@@ -147,7 +147,7 @@ Pi session 通过 extension hook 在工具执行前进入 `ToolPermissionApplica
 
 GitHub Copilot OAuth 在打包 GUI 中依赖 Bun 静态 flow 注册。恢复路径只处理已经分类为 `authentication-resolution-failed` 的失败：等待该轮 settle，导航到失败 assistant message 的父节点，重新解析认证并调用一次 `agent.continue()`。如果树节点不符合预期、认证仍不可用或 continue 失败，直接发送可见错误并清理恢复状态。
 
-资源诊断和工具摘要只在 application 层转换为共享 DTO；认证文件内容、token、API key、SDK Error 对象和未脱敏输入不得进入 RPC message 或普通诊断日志。
+资源诊断和工具授权摘要只在 application 层转换并脱敏；session transcript 逐条映射为共享消息 DTO，不在主进程配对 tool call/result 或组装 Renderer 专用数据。
 
 ## 生命周期
 
@@ -161,7 +161,7 @@ GitHub Copilot OAuth 在打包 GUI 中依赖 Bun 静态 flow 注册。恢复路�
 - 凭据、完整 `auth.json`、SDK 对象和原始敏感错误不进入 RPC DTO。
 - 工作区文件路径必须由主进程解析并约束在目标 workspace 内。
 - 外部 URL、文件选择器和窗口操作只通过 `DesktopSystem`。
-- 资源诊断、工具输入和可见错误在跨进程前脱敏。
+- 资源诊断、工具授权摘要和可见错误在跨进程前脱敏；transcript 中 Pi 已持久化的消息内容保持原结构。
 
 ## 修改与验证
 

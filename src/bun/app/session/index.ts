@@ -16,15 +16,9 @@ import type {
 } from "@shared/pi-contract";
 import type { PiRuntime, PiSession, PiSessionEvent, PiSessionHooks } from "@main/pi";
 import type { AuthenticationApplication } from "@main/app/authentication";
-import { toAppSessionEvent } from "./events";
+import { toAppSessionEvents } from "./events";
 import { ToolPermissionApplication } from "./permissions";
 import { SessionRecovery } from "./recovery";
-import {
-	toOpenedSession,
-	toSessionRuntimeState,
-	toSessionSummary,
-	toSessionTranscript,
-} from "./snapshot";
 
 type SessionEventListener = (event: AppSessionEvent) => void;
 type PermissionListener = (request: PiToolPermissionRequest) => void;
@@ -34,7 +28,7 @@ export class SessionApplication {
 	private readonly listeners = new Set<SessionEventListener>();
 	private readonly permissions = new ToolPermissionApplication();
 	private readonly recovery = new SessionRecovery((sessionPath, error) => {
-		this.emit(toAppSessionEvent({ sessionPath, type: "error", error }));
+		this.emit({ sessionPath, type: "error", errorMessage: error.message });
 	});
 	private readonly sessionSubscriptions = new Map<string, () => void>();
 
@@ -45,48 +39,47 @@ export class SessionApplication {
 
 	async list(workspacePath: string): Promise<PiSessionSummary[]> {
 		const workspace = await this.pi.openWorkspace(workspacePath);
-		return (await workspace.listSessions()).map(toSessionSummary);
+		return workspace.listSessions();
 	}
 
 	async readTranscript(input: PiSessionTranscriptRequest): Promise<PiSessionTranscript> {
 		const workspace = await this.pi.openWorkspace(input.workspacePath);
-		const session = await workspace.readSession(input.sessionPath);
-		return toSessionTranscript(session.info, session.entries);
+		return workspace.readSession(input.sessionPath);
 	}
 
 	async open(input: PiSessionTranscriptRequest): Promise<PiOpenedSession> {
 		const workspace = await this.pi.openWorkspace(input.workspacePath);
 		const session = await workspace.openSession(input.sessionPath, this.createSessionHooks());
 		this.attachSession(session);
-		return toOpenedSession(session.getSnapshot());
+		return session.getSnapshot();
 	}
 
 	async create(input: PiWorkspaceRequest): Promise<PiOpenedSession> {
 		const workspace = await this.pi.openWorkspace(input.workspacePath);
 		const session = await workspace.createSession(this.createSessionHooks());
 		this.attachSession(session);
-		return toOpenedSession(session.getSnapshot());
+		return session.getSnapshot();
 	}
 
 	async continueRecent(input: PiWorkspaceRequest): Promise<PiOpenedSession> {
 		const workspace = await this.pi.openWorkspace(input.workspacePath);
 		const session = await workspace.continueRecentSession(this.createSessionHooks());
 		this.attachSession(session);
-		return toOpenedSession(session.getSnapshot());
+		return session.getSnapshot();
 	}
 
 	async setModel(input: PiSessionModelRequest): Promise<PiOpenedSession> {
 		const session = this.pi.getSession(input.sessionPath);
 		this.requireIdle(session);
 		await session.setModel(input.provider, input.modelId);
-		return toOpenedSession(session.getSnapshot());
+		return session.getSnapshot();
 	}
 
 	async setThinking(input: PiSessionThinkingRequest): Promise<PiOpenedSession> {
 		const session = this.pi.getSession(input.sessionPath);
 		this.requireIdle(session);
 		session.setThinking(input.thinkingLevel);
-		return toOpenedSession(session.getSnapshot());
+		return session.getSnapshot();
 	}
 
 	async prompt(input: PiSessionCommand): Promise<PiSessionRuntimeState> {
@@ -97,27 +90,27 @@ export class SessionApplication {
 			await session.requireResolvedAuthentication();
 			this.recovery.promptStarted(session.path);
 			await session.prompt(input.text);
-			return toSessionRuntimeState(session.getSnapshot().runtime);
+			return session.getSnapshot().runtime;
 		});
 	}
 
 	async steer(input: PiSessionCommand): Promise<PiSessionRuntimeState> {
 		const session = this.pi.getSession(input.sessionPath);
 		await session.steer(input.text);
-		return toSessionRuntimeState(session.getSnapshot().runtime);
+		return session.getSnapshot().runtime;
 	}
 
 	async followUp(input: PiSessionCommand): Promise<PiSessionRuntimeState> {
 		const session = this.pi.getSession(input.sessionPath);
 		await session.followUp(input.text);
-		return toSessionRuntimeState(session.getSnapshot().runtime);
+		return session.getSnapshot().runtime;
 	}
 
 	async abort(input: PiSessionAbortRequest): Promise<PiSessionRuntimeState> {
 		const session = this.pi.getSession(input.sessionPath);
 		await session.abort();
 		this.recovery.clear(session.path);
-		return toSessionRuntimeState(session.getSnapshot().runtime);
+		return session.getSnapshot().runtime;
 	}
 
 	respondPermission(input: PiToolPermissionResponse): PiToolPermissionResolution {
@@ -151,13 +144,23 @@ export class SessionApplication {
 
 	private attachSession(session: PiSession): void {
 		if (this.sessionSubscriptions.has(session.path)) return;
-		this.sessionSubscriptions.set(session.path, session.subscribe((event) => this.handleSessionEvent(session, event)));
+		this.sessionSubscriptions.set(
+			session.path,
+			session.subscribe((event) => this.handleSessionEvent(session, event)),
+		);
 	}
 
 	private handleSessionEvent(session: PiSession, event: PiSessionEvent): void {
-		if (event.type === "error" && this.recovery.handleError(session.path, event.error)) return;
-		if (event.type === "agent-settled" && this.recovery.handleSettled(session)) return;
-		this.emit(toAppSessionEvent(event));
+		if (event.type === "agent_settled" && this.recovery.handleSettled(session)) return;
+		for (const appEvent of toAppSessionEvents(session.path, event)) {
+			if (
+				appEvent.type === "error"
+				&& this.recovery.handleError(session.path, new Error(appEvent.errorMessage))
+			) {
+				continue;
+			}
+			this.emit(appEvent);
+		}
 	}
 
 	private emit(event: AppSessionEvent): void {

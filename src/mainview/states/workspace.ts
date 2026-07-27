@@ -1,4 +1,5 @@
 import { mutate } from "@view/atom";
+import { chatStore } from "@view/chat-store";
 import type { UseAtom } from "@view/atom";
 import {
 	choosePiWorkspace,
@@ -6,7 +7,7 @@ import {
 } from "@view/lib/pi-client";
 import { WorkspaceBusyAtom, WorkspaceErrorAtom } from "./activity.atom";
 import { AuthenticationAtom } from "./authentication.atom";
-import { OpenedSessionAtom, WorkspaceAtom } from "./current.atom";
+import { SelectedSessionAtom, WorkspaceAtom } from "./current.atom";
 import { RecentWorkspacesAtom } from "./preferences.atom";
 
 export const LoadWorkspaceMutation = mutate((use) =>
@@ -33,7 +34,7 @@ async function load(use: UseAtom, path: string): Promise<void> {
 	if (!nextPath) return;
 
 	const [currentWorkspace, setWorkspace] = use(WorkspaceAtom);
-	const [, setOpenedSession] = use(OpenedSessionAtom);
+	const [, setSelectedSession] = use(SelectedSessionAtom);
 	const [, setError] = use(WorkspaceErrorAtom);
 	const [, setBusy] = use(WorkspaceBusyAtom);
 	setError(undefined);
@@ -43,12 +44,13 @@ async function load(use: UseAtom, path: string): Promise<void> {
 			workspacePath: nextPath,
 		});
 		setWorkspace(nextWorkspace);
+		chatStore.workspace(nextWorkspace.workspacePath);
 		use(RecentWorkspacesAtom)[1].add(nextWorkspace.workspacePath);
 		if (
 			currentWorkspace?.workspacePath !== undefined &&
 			currentWorkspace.workspacePath !== nextWorkspace.workspacePath
 		) {
-			setOpenedSession(undefined);
+			setSelectedSession(undefined);
 		}
 		void use(AuthenticationAtom)[1].refresh().catch(() => undefined);
 	} catch (requestError) {

@@ -1,12 +1,11 @@
 # Session Application
 
-本目录拥有从 Renderer 会话命令到 live `PiSession` 的应用流程，以及从 Pi 领域 event 到共享 DTO event 的反向流程。Pi SDK 生命周期属于 `src/bun/pi/session`；本目录不直接导入 SDK。
+本目录拥有 Renderer 会话命令到 live `PiSession` 的应用流程，并把 Pi 暴露的 SDK event 单次投影为共享 wire event。Pi SDK runtime 生命周期属于 `src/bun/pi/session`；本目录不重新定义 transcript 或事件领域模型。
 
 ## 文件职责
 
-- `index.ts`：打开/创建/继续 session，执行命令，管理 event subscription。
-- `snapshot.ts`：领域 snapshot 到共享 DTO。
-- `events.ts`：领域 event 到 `PiSessionEvent` DTO。
+- `index.ts`：打开/创建/继续 session，执行命令，管理 event subscription，并直接转发 Pi 已构造的 transcript/runtime。
+- `events.ts`：SDK/Pi event 到共享 `PiSessionEvent` 的唯一投影。
 - `permissions.ts`：工具执行前的用户授权状态。
 - `recovery.ts`：认证解析失败的一次性恢复状态机。
 
@@ -41,13 +40,15 @@ application event 必须携带所属 `sessionPath`。RPC 和 Renderer 依靠该�
 
 ## Event 映射
 
-- assistant text/thinking delta 保留增量文本。
-- tool start/update/end 保留 tool call ID、名称和最终错误状态。
-- agent start/end/settled 与 message end 保留生命周期语义，不合并成单一 finished event。
-- `Error` 只转换为可见文本，不能跨进程传递对象。
-- `agent-settled` 是一轮运行真正稳定、允许 Renderer 刷新完整 transcript 的信号。
+- assistant `text_delta` / `thinking_delta` 只保留 SDK 的 `type + delta`。
+- `tool_execution_start` / `tool_execution_end` 保留 SDK 事件名、tool call ID、名称和最终错误状态，不复制 args、partial result 或 result。
+- `agent_start` / `agent_settled` 保留 SDK 生命周期名；Renderer 未消费的中间事件不进入 wire contract。
+- 内部 `Error` 和 assistant 最终失败只投影为 `errorMessage`，不能跨进程传递对象。
+- `agent_settled` 是一轮运行真正稳定、允许 Renderer 刷新完整 transcript 的信号。
 
-新增 SDK event 时先判断 Renderer 是否存在可观察需求；只转发必要信息，不把 SDK event 原样暴露为公共契约。
+持久 transcript 已由 Pi 边界从 `AgentSession.messages` 构造为共享线性消息列表，Application 直接转发，不再维护 snapshot adapter。工具调用与 tool result 的视觉配对只属于 Renderer `SessionView`。
+
+新增 SDK event 时先判断 Renderer 是否存在可观察需求；需要转发时复用 SDK 名称和字段，并在本文件完成唯一一次裁剪。
 
 ## 工具授权
 

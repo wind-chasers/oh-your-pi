@@ -33,12 +33,12 @@ flowchart TD
 
 ## DTO 边界
 
-Pi 领域类型到 `@shared/pi-contract` DTO 的转换属于本层：
+只在应用语义或 RPC 安全要求与 SDK 原类型不同时转换 DTO：
 
-- `session/snapshot.ts` 转换 summary、transcript、runtime state 和 opened session。
-- `session/events.ts` 转换流式 event，并确保每个 event 带有 `sessionPath`。
+- session transcript/runtime 已由 Pi 边界按共享类型构造，Application 直接转发，不重复定义 snapshot 类型。
+- `session/events.ts` 对 SDK/Pi event 做唯一一次字段裁剪，并补充用于并行会话路由的 `sessionPath`。
 - workspace 资源在离开主进程前转换并脱敏。
-- authentication 将 SDK 交互转换为稳定的 prompt/event DTO。
+- authentication 直接接收 SDK `AuthEvent` / `AuthPrompt`，在离开主进程前做唯一一次稳定 wire DTO 投影。
 
 不把 SDK object、`Error`、AbortController 或 resolver 传给 RPC。错误可以向外抛出，但跨进程只依赖稳定 message，不依赖 SDK prototype。
 

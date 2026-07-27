@@ -1,17 +1,14 @@
 import type {
-	CreateAgentSessionServicesOptions,
 	ExtensionAPI,
+	InlineExtension,
+	ToolCallEvent,
 } from "@earendil-works/pi-coding-agent";
 
-type ExtensionFactory = NonNullable<
-	NonNullable<CreateAgentSessionServicesOptions["resourceLoaderOptions"]>["extensionFactories"]
->[number];
-
-export type PiToolCall = {
+export type PiToolCall = Pick<
+	ToolCallEvent,
+	"toolCallId" | "toolName" | "input"
+> & {
 	sessionPath: string;
-	toolCallId: string;
-	toolName: string;
-	input: Record<string, unknown>;
 };
 
 export type PiToolCallDecision = {
@@ -26,7 +23,7 @@ export type PiSessionHooks = {
 export function createSessionExtensionFactories(
 	hooks: PiSessionHooks,
 	getSessionPath: () => string | undefined,
-): ExtensionFactory[] {
+): InlineExtension[] {
 	if (!hooks.beforeToolCall) return [];
 	return [{
 		name: "oh-your-pi-session-hooks",

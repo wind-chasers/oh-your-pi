@@ -1,3 +1,45 @@
+import type {
+	AgentSettledEvent,
+	AgentStartEvent,
+	SessionInfo,
+	SourceInfo,
+	ToolExecutionEndEvent,
+	ToolExecutionStartEvent,
+} from "@earendil-works/pi-coding-agent";
+import type {
+	BashExecutionMessage,
+	BranchSummaryMessage,
+	CompactionSummaryMessage,
+	CustomMessage,
+	ThinkingLevel,
+} from "@earendil-works/pi-agent-core";
+import type {
+	AssistantMessage,
+	AssistantMessageEvent,
+	AuthPrompt,
+	AuthType,
+	Model,
+	ToolResultMessage,
+	UserMessage,
+} from "@earendil-works/pi-ai";
+
+export type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+export type { AuthType } from "@earendil-works/pi-ai";
+
+type RoutedEvent<Event> = Event & { sessionPath: string };
+type TextDelta = Extract<AssistantMessageEvent, { type: "text_delta" }>;
+type ThinkingDelta = Extract<AssistantMessageEvent, { type: "thinking_delta" }>;
+type AuthSelectPrompt = Extract<AuthPrompt, { type: "select" }>;
+
+export type PiSessionMessage =
+	| UserMessage
+	| Omit<AssistantMessage, "diagnostics">
+	| Omit<ToolResultMessage, "details">
+	| BashExecutionMessage
+	| Omit<CustomMessage, "details">
+	| BranchSummaryMessage
+	| CompactionSummaryMessage;
+
 export type PiWorkspaceRequest = {
 	workspacePath: string;
 };
@@ -37,8 +79,6 @@ export type PiSessionAbortRequest = {
 	sessionPath: string;
 };
 
-export type PiThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-
 export type PiSessionModelRequest = {
 	sessionPath: string;
 	provider: string;
@@ -47,16 +87,14 @@ export type PiSessionModelRequest = {
 
 export type PiSessionThinkingRequest = {
 	sessionPath: string;
-	thinkingLevel: PiThinkingLevel;
+	thinkingLevel: ThinkingLevel;
 };
 
-export type PiSessionSummary = {
-	id: string;
-	path: string;
+export type PiSessionSummary = Pick<
+	SessionInfo,
+	"id" | "path" | "name" | "firstMessage" | "messageCount"
+> & {
 	workspacePath: string;
-	name: string | null;
-	firstMessage: string;
-	messageCount: number;
 	modifiedAt: string;
 };
 
@@ -65,11 +103,8 @@ export type PiResourceDiagnostic = {
 	message: string;
 };
 
-export type PiResourceItem = {
+export type PiResourceItem = Pick<SourceInfo, "path" | "source" | "scope"> & {
 	name: string;
-	path: string;
-	scope: "user" | "project" | "temporary";
-	source: string;
 };
 
 export type PiExtensionResource = PiResourceItem & {
@@ -77,29 +112,27 @@ export type PiExtensionResource = PiResourceItem & {
 	tools: string[];
 };
 
-export type PiAuthenticationMethod = "oauth" | "api_key";
-
 export type PiAuthenticationStatus = {
 	provider: string;
 	name: string;
 	status: "available" | "unavailable" | "unknown";
-	type: PiAuthenticationMethod | null;
-	loginMethods: PiAuthenticationMethod[];
+	type: AuthType | null;
+	loginMethods: AuthType[];
 };
 
 export type PiAuthenticationLoginRequest = {
 	provider: string;
-	authType: PiAuthenticationMethod;
+	authType: AuthType;
 };
 
 export type PiAuthenticationCancelRequest = {
 	provider: string;
 };
 
-export type PiAuthenticationPromptOption = {
-	id: string;
-	label: string;
-};
+export type PiAuthenticationPromptOption = Pick<
+	AuthSelectPrompt["options"][number],
+	"id" | "label"
+>;
 
 export type PiAuthenticationEvent = {
 	provider: string;
@@ -156,36 +189,22 @@ export type PiToolPermissionResolution = {
 	resolved: boolean;
 };
 
-export type PiConversationEntry = {
-	id: string;
-	parentId: string | null;
-	timestamp: string;
-	role: "user" | "assistant" | "tool" | "bash" | "custom" | "system";
-	text: string;
-	thinking?: string;
-};
-
 export type PiSessionTranscript = {
 	session: PiSessionSummary;
-	entries: PiConversationEntry[];
+	messages: PiSessionMessage[];
 };
 
-export type PiModel = {
-	provider: string;
-	id: string;
-	name: string;
-	reasoning: boolean;
-};
+export type PiModel = Pick<Model<any>, "provider" | "id" | "name" | "reasoning">;
 
 export type PiSessionRuntimeState = {
 	sessionId: string;
 	sessionPath: string;
 	isStreaming: boolean;
-	sessionName: string | null;
-	model: PiModel | null;
+	sessionName: string | undefined;
+	model: PiModel | undefined;
 	models: PiModel[];
-	thinkingLevel: PiThinkingLevel;
-	availableThinkingLevels: PiThinkingLevel[];
+	thinkingLevel: ThinkingLevel;
+	availableThinkingLevels: ThinkingLevel[];
 };
 
 export type PiOpenedSession = {
@@ -198,12 +217,11 @@ export type PiWorkspaceRefreshResult = {
 	openedSession?: PiOpenedSession;
 };
 
-export type PiSessionEvent = {
-	sessionPath: string;
-	type: "agent_start" | "agent_end" | "agent_settled" | "assistant_text_delta" | "assistant_thinking_delta" | "tool_start" | "tool_update" | "tool_end" | "message_end" | "error";
-	text: string | null;
-	toolCallId: string | null;
-	toolName: string | null;
-	isError: boolean | null;
-};
-
+export type PiSessionEvent =
+	| RoutedEvent<Pick<AgentStartEvent, "type">>
+	| RoutedEvent<Pick<AgentSettledEvent, "type">>
+	| RoutedEvent<Pick<ToolExecutionStartEvent, "type" | "toolCallId" | "toolName">>
+	| RoutedEvent<Pick<ToolExecutionEndEvent, "type" | "toolCallId" | "toolName" | "isError">>
+	| RoutedEvent<Pick<TextDelta, "type" | "delta">>
+	| RoutedEvent<Pick<ThinkingDelta, "type" | "delta">>
+	| { sessionPath: string; type: "error"; errorMessage: NonNullable<AssistantMessage["errorMessage"]> };

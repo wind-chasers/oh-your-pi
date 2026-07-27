@@ -1,11 +1,7 @@
-import { type ReactElement, useState } from "react";
-import type { PiOpenedSession, PiThinkingLevel } from "@shared/pi-contract";
-import {
-	setPiSessionModel,
-	setPiSessionThinking,
-} from "@view/lib/pi-client";
+import { type ReactElement } from "react";
+import type { PiOpenedSession, ThinkingLevel } from "@shared/pi-contract";
+import type { ChatSession } from "@view/chat-store";
 import { AuthenticationAtom } from "@view/states/authentication.atom";
-import { OpenedSessionAtom } from "@view/states/current.atom";
 import {
 	Select,
 	SelectContent,
@@ -15,14 +11,19 @@ import {
 	SelectValue,
 } from "@view/components/ui/select";
 
+type ModelThinkingSelectorProps = {
+	isUpdating: boolean;
+	openedSession: PiOpenedSession;
+	session: ChatSession;
+};
 
-export function ModelThinkingSelector(): ReactElement | null {
+export function ModelThinkingSelector({
+	isUpdating,
+	openedSession,
+	session,
+}: ModelThinkingSelectorProps): ReactElement | null {
 	const authentication = AuthenticationAtom.useData() ?? [];
-	const [openedSession, setOpenedSession] = OpenedSessionAtom.use();
-	const [error, setError] = useState<string>();
-	const [isUpdating, setIsUpdating] = useState(false);
-	if (!openedSession) return null;
-	const { availableThinkingLevels, isStreaming, model, models, sessionPath, thinkingLevel } =
+	const { availableThinkingLevels, isStreaming, model, models, thinkingLevel } =
 		openedSession.runtime;
 	const availableModels = models.filter((candidate) =>
 		authentication.some(
@@ -40,44 +41,19 @@ export function ModelThinkingSelector(): ReactElement | null {
 			? modelValue(model.provider, model.id)
 			: undefined;
 
-	async function update(
-		action: () => Promise<PiOpenedSession>,
-		fallback: string,
-	): Promise<void> {
-		setError(undefined);
-		setIsUpdating(true);
-		try {
-			setOpenedSession(await action());
-		} catch (requestError) {
-			setError(requestError instanceof Error ? requestError.message : fallback);
-		} finally {
-			setIsUpdating(false);
-		}
-	}
-
 	function handleModelChange(value: string): void {
 		const [provider, modelId] = value.split("\u0000");
 		if (!provider || !modelId) return;
-		void update(
-			() => setPiSessionModel({ modelId, provider, sessionPath }),
-			"无法切换 Pi 模型。",
-		);
+		void session.setModel(provider, modelId).catch(() => undefined);
 	}
 
 	function handleThinkingChange(value: string): void {
-		void update(
-			() =>
-				setPiSessionThinking({
-					sessionPath,
-					thinkingLevel: value as PiThinkingLevel,
-				}),
-			"无法更新思考级别。",
-		);
+		void session.setThinking(value as ThinkingLevel).catch(() => undefined);
 	}
 
-
-	if (availableModels.length === 0 && availableThinkingLevels.length === 0)
+	if (availableModels.length === 0 && availableThinkingLevels.length === 0) {
 		return null;
+	}
 
 	return (
 		<div className="flex min-w-0 items-center gap-2">
@@ -124,7 +100,6 @@ export function ModelThinkingSelector(): ReactElement | null {
 					</SelectContent>
 				</Select>
 			) : null}
-			{error ? <p className="max-w-48 text-xs text-destructive" role="alert">{error}</p> : null}
 		</div>
 	);
 }

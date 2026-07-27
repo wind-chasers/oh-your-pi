@@ -1,8 +1,8 @@
 # Chat Store
 
-本目录是 Renderer 中所有会话数据的长期内存层。组件只消费 Chat Store，不负责打开会话、订阅主进程事件、拼接流或维护工具授权状态。
+本目录是 Renderer 中所有会话数据的长期内存层。业务组件已经统一迁移到 Chat Store：组件只消费 `ChatSessionSnapshot`、`SessionView` 和 `ChatSession` 命令，不负责打开会话、订阅主进程事件、拼接流或维护工具授权状态。
 
-当前业务组件尚未迁移到本目录；迁移时必须删除组件内重复的 `pi-client` 会话订阅、流状态和 render item 计算，不能让两套状态源长期并存。
+当前 workspace snapshot 和选中 session identity 仍属于导航 Atom；它们只决定界面展示哪个 `ChatWorkspace` / `ChatSession`，不复制 session runtime、transcript 或增量状态。
 
 ## 为什么独立存在
 
@@ -91,13 +91,12 @@ flowchart LR
 
 `SessionView` 只处理渲染级派生数据，不调用 RPC，也不拥有主进程状态：
 
-- `items` 按 transcript entries 对象身份缓存；会话切走再切回时直接复用。
+- `items` 按 transcript messages 对象身份缓存；会话切走再切回时直接复用。
 - 不生成空 assistant item；只有文本、thinking 或错误文本时才渲染 assistant。
-- 连续的 tool-call-only assistant entries 合并为一个 `tool-section` ViewItem。
-- tool result 与 tool call 在这里配对，组件不重复扫描 transcript。
+- 连续的 tool-call-only assistant messages 合并为一个 `tool-section` ViewItem。
+- tool result 与 tool call 在这里配对，组件不重复扫描线性消息列表。
 - `cache(key, dependencies, calculate)` 为后续其他 session 级渲染计算提供通用缓存。
 
-旧的 `chat/render-items.ts` 在业务组件迁移到 `SessionView` 后应删除，不能长期维护两份规则。
 
 ## 快照语义
 

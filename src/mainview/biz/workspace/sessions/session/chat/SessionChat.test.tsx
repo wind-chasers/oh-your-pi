@@ -2,13 +2,12 @@ import { describe, expect, mock, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import type {
 	PiAuthenticationStatus,
-	PiConversationEntry,
 	PiOpenedSession,
+	PiSessionMessage,
 	PiSessionSummary,
 } from "@shared/pi-contract";
 import type { ReactElement } from "react";
 import { WithStore } from "@view/atom";
-import { OpenedSessionAtom } from "@view/states/current.atom";
 
 mock.module("electrobun/view", () => ({
 	Electroview: {
@@ -23,9 +22,10 @@ mock.module("electrobun/view", () => ({
 (globalThis as { window?: unknown }).window = {};
 
 // Dynamic loading is required so the Electrobun mock is installed first.
-const [{ SessionChat }, { AuthenticationAtom }] = await Promise.all([
+const [{ SessionChat }, { AuthenticationAtom }, { chatStore }] = await Promise.all([
 	import(".."),
 	import("@view/states/authentication.atom"),
+	import("@view/chat-store"),
 ]);
 
 const session: PiSessionSummary = {
@@ -69,7 +69,7 @@ const openedSession: PiOpenedSession = {
 	},
 	transcript: {
 		session,
-		entries: [],
+		messages: [],
 	},
 };
 
@@ -81,20 +81,30 @@ const authentication: PiAuthenticationStatus[] = [{
 	loginMethods: ["api_key"],
 }];
 
-const conversationEntries: PiConversationEntry[] = [
+const usage = {
+	cacheRead: 0,
+	cacheWrite: 0,
+	cost: { cacheRead: 0, cacheWrite: 0, input: 0, output: 0, total: 0 },
+	input: 0,
+	output: 0,
+	totalTokens: 0,
+};
+
+const conversationMessages: PiSessionMessage[] = [
 	{
-		id: "user-entry",
-		parentId: null,
 		role: "user",
-		text: "老铁，我又来了",
-		timestamp: "2026-07-24T00:00:00.000Z",
+		content: [{ type: "text", text: "老铁，我又来了" }],
+		timestamp: 0,
 	},
 	{
-		id: "assistant-entry",
-		parentId: "user-entry",
+		api: "test",
+		provider: "test",
+		model: "test",
 		role: "assistant",
-		text: "欢迎回来",
-		timestamp: "2026-07-24T00:00:01.000Z",
+		content: [{ type: "text", text: "欢迎回来" }],
+		stopReason: "stop",
+		timestamp: 1,
+		usage,
 	},
 ];
 
@@ -102,13 +112,22 @@ function renderSessionChat(
 	currentAuthentication: PiAuthenticationStatus[],
 	currentSession: PiOpenedSession,
 ): string {
+	chatStore
+		.session(
+			currentSession.transcript.session.workspacePath,
+			currentSession.runtime.sessionId,
+			currentSession.runtime.sessionPath,
+		)
+		.hydrate(currentSession);
 	function Fixture(): ReactElement {
 		AuthenticationAtom.useChange().setStatuses(currentAuthentication);
-		OpenedSessionAtom.useChange()(currentSession);
 		return (
 			<SessionChat
 				isFileTreeOpen={false}
 				onToggleFileTree={() => {}}
+				sessionId={currentSession.runtime.sessionId}
+				sessionPath={currentSession.runtime.sessionPath}
+				workspacePath={currentSession.transcript.session.workspacePath}
 			/>
 		);
 	}
@@ -142,7 +161,7 @@ describe("SessionChat", () => {
 			...openedSession,
 			transcript: {
 				...openedSession.transcript,
-				entries: conversationEntries,
+				messages: conversationMessages,
 			},
 		});
 

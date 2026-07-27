@@ -1,150 +1,93 @@
 import type {
 	AgentSession,
 	AgentSessionServices,
-	SessionEntry,
 	SessionInfo,
 } from "@earendil-works/pi-coding-agent";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { Model, UserMessage } from "@earendil-works/pi-ai";
+import type {
+	PiModel,
+	PiOpenedSession,
+	PiSessionMessage,
+	PiSessionRuntimeState,
+	PiSessionSummary,
+} from "@shared/pi-contract";
 
-export type PiThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-
-export type PiModelInfo = {
-	id: string;
-	name: string;
-	provider: string;
-	reasoning: boolean;
-};
-
-export type PiSessionInfo = {
-	id: string;
-	path: string;
-	workspacePath: string;
-	name: string | null;
-	firstMessage: string;
-	messageCount: number;
-	modifiedAt: string;
-};
-
-export type PiConversationEntry = {
-	id: string;
-	parentId: string | null;
-	timestamp: string;
-	role: "user" | "assistant" | "tool" | "bash" | "custom" | "system";
-	text: string;
-	thinking?: string;
-	errorMessage?: string;
-};
-
-export type PiSessionRuntimeSnapshot = {
-	sessionId: string;
-	sessionPath: string;
-	isStreaming: boolean;
-	sessionName: string | null;
-	model: PiModelInfo | null;
-	models: PiModelInfo[];
-	thinkingLevel: PiThinkingLevel;
-	availableThinkingLevels: PiThinkingLevel[];
-};
-
-export type PiSessionSnapshot = {
-	info: PiSessionInfo;
-	entries: PiConversationEntry[];
-	runtime: PiSessionRuntimeSnapshot;
-};
-
-type ContentBlock = {
-	type: string;
-	text?: string;
-	thinking?: string;
-	name?: string;
-};
-
-export function createPiSessionSnapshot(options: {
+export function createPiOpenedSession(options: {
 	baseInfo?: SessionInfo;
 	path: string;
 	services: AgentSessionServices;
 	session: AgentSession;
 	workspacePath: string;
-}): PiSessionSnapshot {
+}): PiOpenedSession {
 	const { baseInfo, path, services, session, workspacePath } = options;
-	const entries = session.sessionManager.getBranch().flatMap(toPiConversationEntry);
+	const messages = toPiSessionMessages(session.messages);
 	return {
-		info: {
-			id: session.sessionId,
-			path,
-			workspacePath,
-			name: session.sessionName ?? null,
-			firstMessage: baseInfo?.firstMessage ?? entries.find((entry) => entry.role === "user")?.text ?? "",
-			messageCount: Math.max(baseInfo?.messageCount ?? 0, session.sessionManager.getEntries().length),
-			modifiedAt: baseInfo?.modified.toISOString() ?? new Date().toISOString(),
+		transcript: {
+			session: {
+				id: session.sessionId,
+				path,
+				workspacePath,
+				name: session.sessionName,
+				firstMessage: baseInfo?.firstMessage ?? findFirstUserMessage(messages),
+				messageCount: Math.max(
+					baseInfo?.messageCount ?? 0,
+					session.sessionManager.getEntries().length,
+				),
+				modifiedAt: baseInfo?.modified.toISOString() ?? new Date().toISOString(),
+			},
+			messages,
 		},
-		entries,
-		runtime: {
-			sessionId: session.sessionId,
-			sessionPath: path,
-			isStreaming: session.isStreaming,
-			sessionName: session.sessionName ?? null,
-			model: session.model ? toPiModel(session.model) : null,
-			models: services.modelRuntime.getModels().map(toPiModel),
-			thinkingLevel: session.thinkingLevel,
-			availableThinkingLevels: session.getAvailableThinkingLevels(),
-		},
+		runtime: toPiSessionRuntimeState(session, services, path),
 	};
 }
 
-export function toPiSessionInfo(session: SessionInfo): PiSessionInfo {
+export function toPiSessionSummary(session: SessionInfo): PiSessionSummary {
 	return {
 		id: session.id,
 		path: session.path,
 		workspacePath: session.cwd,
-		name: session.name ?? null,
+		name: session.name,
 		firstMessage: session.firstMessage,
 		messageCount: session.messageCount,
 		modifiedAt: session.modified.toISOString(),
 	};
 }
 
-export function toPiConversationEntry(entry: SessionEntry): PiConversationEntry[] {
-	if (entry.type === "compaction" || entry.type === "branch_summary") {
-		return [{ id: entry.id, parentId: entry.parentId, timestamp: entry.timestamp, role: "system", text: entry.summary }];
+export function toPiSessionMessages(
+	messages: AgentMessage[],
+): PiSessionMessage[] {
+	const result: PiSessionMessage[] = [];
+	for (const message of messages) {
+		if (message.role === "custom") {
+			if (message.display) result.push(omitProperty(message, "details"));
+			continue;
+		}
+		if (message.role === "toolResult") result.push(omitProperty(message, "details"));
+		else if (message.role === "assistant") result.push(omitProperty(message, "diagnostics"));
+		else result.push(message);
 	}
-	if (entry.type === "custom_message") {
-		if (!entry.display) return [];
-		return [{ id: entry.id, parentId: entry.parentId, timestamp: entry.timestamp, role: "custom", text: contentToText(entry.content) }];
-	}
-	if (entry.type !== "message") return [];
-
-	const message = entry.message;
-	if (message.role === "user") {
-		return [{ id: entry.id, parentId: entry.parentId, timestamp: entry.timestamp, role: "user", text: contentToText(message.content) }];
-	}
-	if (message.role === "assistant") {
-		const { text, thinking } = contentToAssistantContent(message.content);
-		return [{
-			id: entry.id,
-			parentId: entry.parentId,
-			timestamp: entry.timestamp,
-			role: "assistant",
-			text,
-			...(thinking ? { thinking } : {}),
-			...(message.stopReason === "error" && message.errorMessage ? { errorMessage: message.errorMessage } : {}),
-		}];
-	}
-	if (message.role === "toolResult") {
-		return [{ id: entry.id, parentId: entry.parentId, timestamp: entry.timestamp, role: "tool", text: contentToText(message.content) }];
-	}
-	if (message.role === "bashExecution") {
-		return [{ id: entry.id, parentId: entry.parentId, timestamp: entry.timestamp, role: "bash", text: message.output }];
-	}
-	if (message.role === "custom" && message.display) {
-		return [{ id: entry.id, parentId: entry.parentId, timestamp: entry.timestamp, role: "custom", text: contentToText(message.content) }];
-	}
-	if (message.role === "branchSummary" || message.role === "compactionSummary") {
-		return [{ id: entry.id, parentId: entry.parentId, timestamp: entry.timestamp, role: "system", text: message.summary }];
-	}
-	return [];
+	return result;
 }
 
-function toPiModel(model: { id: string; name: string; provider: string; reasoning: boolean }): PiModelInfo {
+function toPiSessionRuntimeState(
+	session: AgentSession,
+	services: AgentSessionServices,
+	path: string,
+): PiSessionRuntimeState {
+	return {
+		sessionId: session.sessionId,
+		sessionPath: path,
+		isStreaming: session.isStreaming,
+		sessionName: session.sessionName,
+		model: session.model ? toPiModel(session.model) : undefined,
+		models: services.modelRuntime.getModels().map(toPiModel),
+		thinkingLevel: session.thinkingLevel,
+		availableThinkingLevels: session.getAvailableThinkingLevels(),
+	};
+}
+
+function toPiModel(model: Model<any>): PiModel {
 	return {
 		id: model.id,
 		name: model.name,
@@ -153,32 +96,26 @@ function toPiModel(model: { id: string; name: string; provider: string; reasonin
 	};
 }
 
-function contentToAssistantContent(content: string | readonly ContentBlock[]): { text: string; thinking: string } {
-	if (typeof content === "string") return { text: content, thinking: "" };
-	const text: string[] = [];
-	const thinking: string[] = [];
-	for (const block of content) {
-		if (block.type === "thinking") thinking.push(block.thinking ?? "");
-		else if (block.type === "text") text.push(block.text ?? "");
-		else if (block.type === "toolCall") text.push(`调用工具：${block.name ?? "unknown"}`);
-		else if (block.type === "image") text.push("[图片]");
-	}
-	return {
-		text: text.filter(Boolean).join("\n"),
-		thinking: thinking.filter(Boolean).join("\n"),
-	};
+function omitProperty<Value extends object, Key extends keyof Value>(
+	value: Value,
+	key: Key,
+): Omit<Value, Key> {
+	const result: Partial<Value> = { ...value };
+	delete result[key];
+	return result as Omit<Value, Key>;
 }
 
-function contentToText(content: string | readonly ContentBlock[]): string {
+function findFirstUserMessage(messages: PiSessionMessage[]): string {
+	for (const message of messages) {
+		if (message.role === "user") return messageContentToText(message.content);
+	}
+	return "";
+}
+
+function messageContentToText(content: UserMessage["content"]): string {
 	if (typeof content === "string") return content;
 	return content
-		.map((block) => {
-			if (block.type === "text") return block.text ?? "";
-			if (block.type === "thinking") return block.thinking ?? "";
-			if (block.type === "toolCall") return `调用工具：${block.name ?? "unknown"}`;
-			if (block.type === "image") return "[图片]";
-			return "";
-		})
+		.map((block) => block.type === "text" ? block.text : "[图片]")
 		.filter(Boolean)
 		.join("\n");
 }

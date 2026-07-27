@@ -33,7 +33,8 @@ Oh Your Pi 是基于 **Electrobun + Bun + React/Vite** 的 Pi Coding Agent 桌�
 ```mermaid
 flowchart LR
   subgraph Renderer["Renderer · React / Vite"]
-    UI["AppShell · Workspace · SessionChat"] --> Client["lib/pi-client"]
+    UI["AppShell · Workspace · SessionChat"] --> Store["ChatStore · ChatWorkspace · ChatSession"]
+    Store --> Client["lib/pi-client"]
   end
 
   subgraph Main["Main process · Bun"]
@@ -74,9 +75,9 @@ mainview ──→ shared ←── rpc ──→ app ──→ pi ──→ Pi 
 
 约束：
 
-1. Renderer 不导入 `src/bun` 或 `@earendil-works/pi-*`。
-2. `src/bun/pi/**` 是主进程内唯一允许导入 `@earendil-works/pi-*` 的区域。
-3. `src/bun/pi/**` 不依赖 App、RPC DTO、Electrobun 或 Renderer。
+1. Renderer 不得运行时导入 `src/bun` 或 `@earendil-works/pi-*`；`import type` 可以复用 SDK 已有事实类型。
+2. `src/shared/**` 可以 type-only 导入 Pi SDK，并优先直接复用或用 `Pick` / `Omit` / `Extract` 派生 RPC 安全子集；不得复制同构类型。
+3. `src/bun/pi/**` 是主进程内唯一允许运行时导入 `@earendil-works/pi-*` 的区域；可以 type-only 依赖共享契约作为输出约束。
 4. `src/bun/app/**` 不依赖 Electrobun；桌面和传输能力由外层适配。
 5. `src/bun/rpc/**` 只转发请求与事件，不实现业务状态机。
 6. `src/shared/**` 只包含静态 TypeScript 契约，不执行运行时解析。
@@ -102,9 +103,10 @@ flowchart TB
   Auth -->|"是"| Prompt["PiSession.prompt"]
   Prompt --> Accepted["SDK 接受 prompt\nrequest 返回 runtime state"]
   Prompt --> Stream["sessionEvent 流"]
-  Stream --> Render["SessionChat 增量渲染"]
+  Stream --> Store["ChatStore 路由并更新 ChatSession"]
+  Store --> Render["SessionChat 订阅 snapshot"]
   Stream --> Settled["agent_settled"]
-  Settled --> Refresh["重新读取完整 transcript"]
+  Settled --> Refresh["ChatSession 重新读取 transcript"]
   Prompt --> Permission{"工具需要授权？"}
   Permission -->|"是"| Ask["toolPermissionRequest"]
   Ask --> Decide["用户允许或拒绝"]
@@ -112,7 +114,7 @@ flowchart TB
   Reply --> Prompt
 ```
 
-消息 request 只确认主进程与 SDK 已接受命令，不等待整轮生成。文本、thinking、工具状态和错误由带 `sessionPath` 的 event 流传递；Renderer 只消费当前打开 session 的事件。`agent_settled` 才表示这一轮进入稳定状态，随后以主进程重新读取的 transcript 替换临时增量视图。
+消息 request 只确认主进程与 SDK 已接受命令，不等待整轮生成。文本、thinking、工具状态和错误由带 `sessionPath` 的 event 流传递；Renderer 的唯一全局 ChatStore 把事件路由到所属后台 session，当前导航选择不参与路由。`agent_settled` 后由对应 `ChatSession` 刷新 transcript，并按 generation 清理临时增量。
 
 工具授权是独立的主进程发起交互：危险等级用于 UI 提示，最终决定仍由用户返回。认证解析失败只在主进程受控恢复一次，不由 Renderer 重发 prompt。
 
@@ -130,7 +132,7 @@ flowchart TB
 - 应用窗口状态：`~/.pi/oh-your-pi/window.json`。
 - Renderer 偏好：当前 WebView origin 的 `localStorage`。
 
-凭据、token、API key 和完整 `auth.json` 不进入 Renderer；跨进程诊断和工具参数在主进程完成脱敏。
+凭据、token、API key 和完整 `auth.json` 不进入 Renderer；跨进程资源诊断与工具授权摘要在主进程脱敏。session transcript 本身保留 Pi 已持久化的 tool-call arguments，不额外生成一份 Renderer 专用工具数据。
 
 ### 具体持久化行为
 

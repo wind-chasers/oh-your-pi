@@ -1,5 +1,7 @@
 import { LoaderCircle, Send, ShieldCheck } from "lucide-react";
 import { type FormEvent, type ReactElement } from "react";
+import type { PiOpenedSession } from "@shared/pi-contract";
+import type { ChatSession } from "@view/chat-store";
 import { Button } from "@view/components/ui/button";
 import { AuthenticationDialogOpenAtom } from "@view/states/authentication.atom";
 import { ModelThinkingSelector } from "./ModelThinkingSelector";
@@ -11,6 +13,8 @@ type ChatComposerProps = {
 	hasAvailableModel: boolean;
 	isSending: boolean;
 	isStreaming: boolean;
+	openedSession: PiOpenedSession;
+	session: ChatSession;
 	onChange: (value: string) => void;
 	onFollowUp: () => Promise<void>;
 	onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
@@ -23,6 +27,8 @@ export function ChatComposer({
 	hasAvailableModel,
 	isSending,
 	isStreaming,
+	openedSession,
+	session,
 	onChange,
 	onFollowUp,
 	onSubmit,
@@ -53,7 +59,7 @@ export function ChatComposer({
 				</div>
 				<div className="mt-2 flex items-center justify-between gap-3 px-0.5">
 					<div className="flex gap-2">
-						<ModelThinkingSelector />
+						<ModelThinkingSelector isUpdating={isSending} openedSession={openedSession} session={session} />
 					</div>
 					<div className="flex gap-2 items-center">
 						{!hasAvailableCredential ? (

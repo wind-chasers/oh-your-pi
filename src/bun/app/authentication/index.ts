@@ -1,3 +1,4 @@
+import type { AuthEvent, AuthPrompt } from "@earendil-works/pi-ai";
 import type {
 	PiAuthenticationCancelRequest,
 	PiAuthenticationEvent,
@@ -5,11 +6,7 @@ import type {
 	PiAuthenticationPromptResponse,
 	PiAuthenticationStatus,
 } from "@shared/pi-contract";
-import type {
-	PiAuthentication,
-	PiAuthenticationEvent as PiSdkAuthenticationEvent,
-	PiAuthenticationPrompt,
-} from "@main/pi";
+import type { PiAuthentication } from "@main/pi";
 
 type AuthenticationListener = (event: PiAuthenticationEvent) => void;
 
@@ -98,13 +95,13 @@ export class AuthenticationApplication {
 		this.listeners.clear();
 	}
 
-	private emitAuthenticationEvent(provider: string, event: PiSdkAuthenticationEvent): void {
+	private emitAuthenticationEvent(provider: string, event: AuthEvent): void {
 		let applicationEvent: PiAuthenticationEvent;
 		switch (event.type) {
-			case "auth-url":
+			case "auth_url":
 				applicationEvent = {
 					provider,
-					type: "auth_url",
+					type: event.type,
 					message: event.instructions ?? "请在浏览器中继续授权。",
 					url: event.url,
 					userCode: null,
@@ -114,12 +111,12 @@ export class AuthenticationApplication {
 					options: [],
 				};
 				break;
-			case "device-code":
+			case "device_code":
 				applicationEvent = {
 					provider,
-					type: "device_code",
+					type: event.type,
 					message: "在浏览器中输入设备代码以完成授权。",
-					url: event.verificationUrl,
+					url: event.verificationUri,
 					userCode: event.userCode,
 					promptId: null,
 					placeholder: null,
@@ -145,7 +142,7 @@ export class AuthenticationApplication {
 		this.emit(applicationEvent);
 	}
 
-	private requestPrompt(provider: string, prompt: PiAuthenticationPrompt): Promise<string> {
+	private requestPrompt(provider: string, prompt: AuthPrompt): Promise<string> {
 		const id = crypto.randomUUID();
 		this.emit({
 			provider,
@@ -154,9 +151,11 @@ export class AuthenticationApplication {
 			url: null,
 			userCode: null,
 			promptId: id,
-			placeholder: prompt.placeholder ?? null,
+			placeholder: "placeholder" in prompt ? prompt.placeholder ?? null : null,
 			inputType: prompt.type,
-			options: prompt.options,
+			options: prompt.type === "select"
+				? prompt.options.map(({ id: optionId, label }) => ({ id: optionId, label }))
+				: [],
 		});
 		const { promise, resolve, reject } = Promise.withResolvers<string>();
 		this.pendingPrompts.set(id, { provider, reject, resolve });

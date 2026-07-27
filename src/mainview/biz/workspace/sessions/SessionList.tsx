@@ -1,9 +1,9 @@
 import { Plus } from "lucide-react";
 import { type ReactElement, useMemo, useState } from "react";
-import type { PiWorkspaceSnapshot } from "@shared/pi-contract";
+import type { PiSessionSummary } from "@shared/pi-contract";
 import { Button } from "@view/components/ui/button";
 import { AppDisabledAtom } from "@view/states/activity.atom";
-import { OpenedSessionAtom, WorkspaceAtom } from "@view/states/current.atom";
+import { SelectedSessionAtom, WorkspaceAtom } from "@view/states/current.atom";
 import {
 	ContinueRecentSessionMutation,
 	CreateSessionMutation,
@@ -14,7 +14,7 @@ import {
 export function SessionList(): ReactElement {
 	const disabled = AppDisabledAtom.use();
 	const sessions = WorkspaceAtom.useData()?.sessions ?? [];
-	const selectedSessionPath = OpenedSessionAtom.useData()?.runtime.sessionPath;
+	const selectedSession = SelectedSessionAtom.useData();
 	const continueRecentSession = ContinueRecentSessionMutation.use();
 	const createSession = CreateSessionMutation.use();
 	const selectSession = SelectSessionMutation.use();
@@ -74,7 +74,7 @@ export function SessionList(): ReactElement {
 				{visibleSessions.map((session) => (
 					<SessionListItem
 						disabled={disabled}
-						isSelected={selectedSessionPath === session.path}
+						isSelected={selectedSession?.sessionId === session.id}
 						key={session.id}
 						onSelect={selectSession}
 						session={session}
@@ -100,8 +100,8 @@ function SessionListItem({
 }: {
 	disabled: boolean;
 	isSelected: boolean;
-	onSelect: (sessionPath: string) => Promise<void>;
-	session: PiWorkspaceSnapshot["sessions"][number];
+	onSelect: (session: PiSessionSummary) => Promise<void>;
+	session: PiSessionSummary;
 }): ReactElement {
 	const title = session.name || session.firstMessage || "未命名会话";
 	return (
@@ -109,7 +109,7 @@ function SessionListItem({
 			aria-current={isSelected ? "page" : undefined}
 			className="mb-1 w-full rounded-md px-3 py-2 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 aria-[current=page]:bg-primary/10 aria-[current=page]:text-primary"
 			disabled={disabled}
-			onClick={() => void onSelect(session.path)}
+			onClick={() => void onSelect(session)}
 			title={title}
 			type="button"
 		>

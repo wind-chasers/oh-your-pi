@@ -1,12 +1,17 @@
 import { expect, test } from "bun:test";
+import type { AuthInteraction, AuthType } from "@earendil-works/pi-ai";
 import type { PiAuthentication } from "@main/pi";
 import { AuthenticationApplication } from "@main/app/authentication";
 
 test("OAuth 提供商未连接时仍可通过选择提示完成登录", async () => {
-	let selectedMethod: string | undefined;
+	let selectedMethod: AuthType | undefined;
 	const authentication = {
 		listProviders: async () => [],
-		login: async (_provider: string, method: "oauth" | "api_key", interaction: Parameters<PiAuthentication["login"]>[2]) => {
+		login: async (
+			_provider: string,
+			method: AuthType,
+			interaction: AuthInteraction,
+		) => {
 			selectedMethod = method;
 			const choice = await interaction.prompt({
 				type: "select",
@@ -40,7 +45,11 @@ test("取消登录会中止提供商交互", async () => {
 	let signal: AbortSignal | undefined;
 	const authentication = {
 		listProviders: async () => [],
-		login: async (_provider: string, _method: "oauth" | "api_key", interaction: Parameters<PiAuthentication["login"]>[2]) => {
+		login: async (
+			_provider: string,
+			_method: AuthType,
+			interaction: AuthInteraction,
+		) => {
 			signal = interaction.signal;
 			await new Promise<void>((_resolve, reject) => {
 				interaction.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });

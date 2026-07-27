@@ -8,23 +8,21 @@ Renderer 负责展示工作区、会话和认证状态，收集用户操作，�
 flowchart TD
   Main["main.tsx\nWithStore"] --> App["App\n窗口级壳"]
   App --> Shell["AppShell"]
-  Shell --> Controller["useWorkspaceSessionController"]
   Shell --> Sidebar["AppSidebar"]
   Shell --> Workspace["WorkspacePage"]
   Shell --> Auth["ProviderAuthenticationDialog"]
-  Workspace --> Files["files/"]
-  Workspace --> Sessions["sessions/"]
-  Sessions --> Chat["SessionChat"]
-  Controller --> Client["lib/pi-client"]
+  Workspace --> Chat["SessionChat"]
+  Chat --> Store["chat-store\nChatStore · Workspace · Session"]
+  Store --> Client["lib/pi-client"]
   Auth --> Client
-  Chat --> Client
   Client --> RPC["Electrobun RPC"]
 ```
 
 对应局部 owner 文档：
 
-- [`src/mainview/biz/app/ai.prompt.md`](../src/mainview/biz/app/ai.prompt.md)：工作区级 controller 与顶层页面状态。
-- [`src/mainview/biz/workspace/sessions/session/ai.prompt.md`](../src/mainview/biz/workspace/sessions/session/ai.prompt.md)：流式会话 UI 与工具授权交互。
+- [`src/mainview/chat-store/ai.prompt.md`](../src/mainview/chat-store/ai.prompt.md)：workspace/session 长期内存、流、命令和 SessionView。
+- [`src/mainview/biz/app/ai.prompt.md`](../src/mainview/biz/app/ai.prompt.md)：顶层组合与导航 Atom。
+- [`src/mainview/biz/workspace/sessions/session/ai.prompt.md`](../src/mainview/biz/workspace/sessions/session/ai.prompt.md)：Chat Store 的会话 UI 适配。
 - [`src/mainview/atom/ai.prompt.md`](../src/mainview/atom/ai.prompt.md)：Atom 完整 API 与使用方式。
 
 本文维护 Renderer 跨 feature 的组合与依赖方向；单个 owner 的状态机和修改规则由对应局部文档维护。
@@ -35,29 +33,29 @@ flowchart TD
 src/mainview/
 ├── main.tsx                              # React root、WithStore、主题初始化
 ├── App.tsx                               # 窗口级视觉壳与 TooltipProvider
+├── chat-store/                          # 全局 workspace/session 内存层、流状态与 SessionView
 ├── biz/
 │   ├── app/
-│   │   ├── AppShell.tsx                  # sidebar、workspace、认证弹窗组合
-│   │   ├── use-workspace-session-controller.ts
-│   │   ├── preferences/                  # 浏览器侧 UI 偏好
-│   │   └── sidebar/                      # 工作区切换与设置入口
-│   ├── authentication/                   # provider 列表与登录步骤
+│   │   ├── AppShell.tsx                 # sidebar、workspace、认证弹窗组合
+│   │   ├── preferences/                 # 浏览器侧 UI 偏好
+│   │   └── sidebar/                     # 工作区切换与设置入口
+│   ├── authentication/                  # provider 列表与登录步骤
 │   └── workspace/
-│       ├── index.tsx                     # files 与 sessions 区域协调
+│       ├── index.tsx                    # 导航选择、files 与 sessions 区域协调
 │       ├── files/                        # 文件树、读取与预览
 │       └── sessions/
 │           ├── SessionList.tsx
 │           └── session/
-│               ├── index.tsx             # 当前会话状态机
-│               └── chat/                 # transcript、消息、输入、模型与授权
+│               ├── index.tsx            # ChatSession 到展示组件的适配
+│               └── chat/                # transcript、消息、输入、模型与授权 UI
 ├── components/
-│   ├── ui/                               # 跨业务 UI 基元
-│   └── markdown-content.tsx              # Markdown 渲染
+│   ├── ui/                              # 跨业务 UI 基元
+│   └── markdown-content.tsx             # Markdown 渲染
 ├── lib/
-│   ├── pi-client.ts                      # 唯一 Electrobun client
-│   └── theme.ts                          # 主题持久化
-├── atom/                                 # 小型共享状态基础设施
-└── states/                               # 应用级 atom 定义
+│   ├── pi-client.ts                     # 唯一 Electrobun client
+│   └── theme.ts                         # 主题持久化
+├── atom/                                # 小型共享状态基础设施
+└── states/                              # 导航、认证、偏好和页面级 UI atom/mutation
 ```
 
 目录结构表达业务组合关系。`biz/app` 可以组合 workspace 与 authentication；反向依赖禁止。files 和 sessions 是 workspace 下的同级域，不互相导入。
@@ -66,35 +64,25 @@ src/mainview/
 
 ### 应用壳
 
-`App` 只提供窗口级视觉壳和全局 UI provider。`AppShell` 组合侧栏、工作区页面和认证弹窗，不承载 RPC 流程。
+`App` 只提供窗口级视觉壳和全局 UI provider。`AppShell` 组合侧栏、工作区页面和认证弹窗，不保存 workspace/session 事实。
 
-`useWorkspaceSessionController` 是工作区级页面状态 owner，持有：
-
-- 当前工作区 snapshot
-- 当前打开的 session snapshot/transcript
-- provider 认证摘要
-- loading、authentication、network 和页面错误状态
-- 最近工作区、主题和思考内容显示偏好
-
-切换工作区、创建/打开 session、认证完成后的资源刷新都从 controller 发起。不要把这些协调逻辑拆散到 sidebar 或展示组件。
+当前 workspace snapshot 和 selected session identity 属于导航 Atom。所有已经注册的 workspace/session、持久 transcript、runtime、当前轮增量、授权队列和命令状态属于进程级 `chatStore`。两者不能保存同一事实。
 
 ### 工作区域
 
-`WorkspacePage` 只协调 session 列表、当前聊天和文件浏览器。`files/` 拥有文件树、选择和预览状态；`sessions/` 拥有会话列表和当前 session 交互。文件域与会话域不直接相互依赖，由 `WorkspacePage` 组合。
+`WorkspacePage` 只协调导航选择、session 列表、当前聊天和文件浏览器。选择身份形成后把 `workspacePath + sessionId + sessionPath` 交给 `SessionChat`；`SessionChat` 使用 `useChatSession()` acquire、打开并订阅稳定的 `ChatSessionSnapshot`。
 
-`SessionChat` 订阅当前 session 的流式 event 和工具授权 request，维护尚未写回完整 transcript 的增量显示状态，并把 session snapshot 更新回 controller。它不自行打开工作区或读取持久 session。
+组件卸载只 release consumer。后台 session 仍由 Chat Store 的唯一全局 event/permission subscription 推进，切回时直接复用 snapshot 和 `SessionView.items`。
 
 ### 认证
 
-`ProviderAuthenticationDialog` 订阅认证事件，只维护当前弹窗交互步骤和用户输入。provider 列表及登录完成后的全局刷新由 controller 管理。关闭弹窗时取消仍在进行的 provider 登录。
+`ProviderAuthenticationDialog` 订阅认证交互事件，只维护当前弹窗步骤和用户输入。provider 摘要及登录后的 workspace/session 刷新由 `AuthenticationAtom` 协调；关闭弹窗时取消仍在进行的 provider 登录。
 
 ## Workspace 与认证交互
 
-controller 选择 workspace 后以主进程返回的规范路径更新 snapshot，并把路径加入最近工作区；切换到不同 workspace 时清除旧 `openedSession`。创建或继续最近 session 时，同时请求新 session 和最新 workspace snapshot，成功后一起更新页面。
+选择 workspace 后以主进程规范路径更新 `WorkspaceAtom` 并注册 `ChatWorkspace`；切换 workspace 只清除 selected session identity，不释放旧 workspace 的后台 session。创建、继续和打开 session 都由 Chat Store 执行，导航 mutation 只更新选择身份和 workspace 列表 snapshot。
 
-文件区域由 `useWorkspaceFiles` 持有目录、选择和内容加载状态。主进程过滤 `.git`、`node_modules`、`dist`、`build`、`.next`，文件预览最多读取 512 KiB，并显式标记 binary 与 truncated；Renderer 只展示结果，不自行读取本地路径。
-
-认证弹窗直接订阅 authentication event，以 provider 为当前交互身份，展示 auth URL、device code、进度以及 text/secret/manual-code/select prompt。provider 状态和登录后的全局资源刷新仍由 controller 持有；关闭弹窗时取消正在进行的 provider flow。
+文件区域由 `useWorkspaceFiles` 持有目录、选择和内容加载状态。认证完成后刷新资源，并让当前选择对应的 `ChatSession.reload()`；其他已缓存 session 保留各自生命周期。
 
 ## RPC 边界
 
@@ -105,28 +93,26 @@ controller 选择 workspace 后以主进程返回的规范路径更新 snapshot�
 - 只使用 `@shared/pi-rpc` 与 `@shared/pi-contract` 类型。
 - 不缓存业务状态、不重试、不解释 SDK 错误。
 
-业务组件不得直接导入 `electrobun/view`，也不得导入 `src/bun` 或 Pi SDK。新增 RPC 调用先进入 `pi-client.ts`，再由真正的页面/controller owner 使用。
+业务组件不得直接导入 `electrobun/view`、`src/bun` 或 Pi SDK。session RPC 只由 Chat Store 使用；其他能力先进入 `pi-client.ts`，再由真正 owner 调用。
 
 ## 状态策略
 
 默认优先级：
 
-1. 仅组件内部需要：`useState` / `useRef`。
-2. 父子组件共同需要：Props 和业务 hook。
-3. 页面级协调：由最近的 controller 持有。
-4. 真正跨树、跨业务且生命周期属于整个 `WithStore`：才使用 `src/mainview/atom`。
+1. workspace/session runtime、transcript、流、授权和命令：`chat-store/`。
+2. 当前 workspace/session 导航身份、认证、偏好和跨区域 UI：`states/` Atom。
+3. 父子组件协作：Props。
+4. 单组件输入和视觉状态：`useState` / `useRef`。
 
-Atom 的具体语义见 [`../src/mainview/atom/ai.prompt.md`](../src/mainview/atom/ai.prompt.md)。不要同时用 React state 和 atom 保存同一业务事实；主进程 snapshot 可重新获取，Renderer 状态只是当前视图副本。
-
-浏览器侧持久化只用于 UI 偏好：主题、是否显示思考过程、最近工作区。Pi 认证、模型、资源与 session 不写入 `localStorage`。
+禁止把 `ChatSessionSnapshot` 复制进 Atom 或 React state。浏览器持久化只用于主题、thinking 显示偏好和最近工作区。
 
 ### 模型、Thinking 与输入状态
 
-当前模型、可选模型、thinking level 和可用 thinking levels 都来自 `PiOpenedSession.runtime`。`ModelThinkingSelector` 位于会话 composer 中，修改后以主进程返回的新 `PiOpenedSession` 更新界面；session streaming 或切换请求期间禁止修改。
+当前模型、thinking、可选模型和 streaming 状态都来自 `ChatSessionSnapshot.openedSession.runtime`。`ModelThinkingSelector` 通过 `ChatSession.setModel()` / `setThinking()` 表达意图；运行和请求期间由 session snapshot 禁用冲突操作。
 
-发送按钮的可用性同时取决于当前模型和对应 provider 的可用凭据。没有可用凭据时显示连接 provider 的操作，而不是发送一个必然失败的 request。显示 thinking 内容只是 Renderer 偏好，不改变 session 的 thinking level。
+`SessionStream` 保存当前轮乐观 user message、assistant text/thinking delta、临时 tool 状态和 permission 队列；`agent_settled` 后由 `ChatSession` 刷新 transcript，并按 generation 清理对应增量。
 
-SessionChat 将完整 transcript 与当前轮临时状态分开：乐观 user message、assistant text/thinking delta、tool 状态和 permission 队列只存在于当前轮。切换 `sessionPath` 时全部清空；`agent_settled` 后重新读取 transcript，不能把拼接中的 UI 状态当成持久 session。
+完整 transcript 由 `SessionView` 编译并缓存为 `SessionViewItem[]`：普通 item 保留原 message index，toolCall 关联 toolResult，相邻调用合并为 tool section。`ChatTranscript` 不重复扫描消息。
 
 ## 事件与一致性
 
@@ -134,36 +120,36 @@ SessionChat 将完整 transcript 与当前轮临时状态分开：乐观 user me
 sequenceDiagram
   participant Main as Bun 主进程
   participant Client as pi-client
-  participant Chat as SessionChat
-  participant Controller as Workspace Controller
+  participant Store as ChatStore
+  participant Session as ChatSession
+  participant View as SessionChat
 
-  Main-->>Client: sessionEvent
-  Client-->>Chat: typed event
-  Chat->>Chat: 更新增量 transcript / tool 状态
-  Chat-->>Controller: onSessionUpdate / onStreamingChange
-  Controller->>Client: 必要时重新读取 snapshot
-  Client->>Main: typed request
+  Main-->>Client: sessionEvent / permission
+  Client-->>Store: 唯一全局 subscription
+  Store->>Session: workspace/path 路由
+  Session->>Session: SessionStream 更新 snapshot
+  Session-->>View: useSyncExternalStore
+  Session->>Client: settled 后刷新 transcript
 ```
 
-所有 session event 都携带 `sessionPath`。订阅者必须忽略不属于当前打开 session 的事件，避免切换会话后旧流污染新视图。完整刷新以主进程返回的 snapshot/transcript 为准，增量状态不能成为第二份持久事实来源。
-
-事件处理保持原始生命周期差异：`agent_start` 进入 streaming，assistant delta 追加显示，tool start/end 更新同一 `toolCallId`，error 回滚乐观消息并展示错误，`agent_settled` 退出 streaming 并触发完整刷新。`agent_end` 不能替代 settled，因为主进程可能仍在执行认证恢复。
+事件先由 ChatStore 路由到所属 workspace/session，再修改状态。界面当前选择不参与事件路由；并行后台 session 因此不会污染彼此。settle refresh 使用 generation，旧刷新不能清空后来启动的新流。
 
 工具 permission request 也按 `sessionPath` 过滤，并在当前会话中排队逐个展示。Renderer 只有在主进程确认 response 成功后才移除请求；真正的 pending resolver、默认拒绝和危险命令判断始终属于 Bun 主进程。
 
 ## 依赖方向
 
-- `biz/app` 可以组合 `biz/workspace` 和 `biz/authentication`。
-- `biz/workspace/files` 与 `biz/workspace/sessions` 保持同级隔离。
-- feature 可以依赖 `components`、`lib`、`atom` 和 shared DTO；基础设施不得反向依赖业务 feature。
+- `biz/app` 可以组合 workspace 与 authentication；files 与 sessions 保持同级隔离。
+- 业务 feature 可以依赖 `chat-store`、components、states、lib 和 shared DTO。
+- `chat-store` 只能依赖 Renderer `lib/pi-client` 与 shared DTO，不能依赖业务组件或导航 Atom。
+- 基础设施不得反向依赖业务 feature；不要新增第二套 session cache/controller。
 - 真正跨业务复用的视觉原语进入 `components/`，传输和浏览器基础设施进入 `lib/`；不要新增含糊的 `biz/shared` 或 `biz/components`。
 - 不为目录创建只做 re-export 的 barrel；目录入口本身承担真实组合职责时可以使用 `index.ts(x)`。
 
 ## 修改与验证
 
-- controller、事件处理或 session 交互变化：验证工作区切换、会话切换和旧事件隔离。
+- Chat Store、事件处理或 session 交互变化：验证后台会话路由、切换后复用、旧刷新隔离和闲置淘汰。
 - 流式 UI 变化：验证 assistant text、thinking、tool start/update/end、error、abort 与 settled 路径。
-- 认证 UI 变化：验证 OAuth URL/device code、文本或 select prompt、取消和登录后资源刷新。
+- 认证 UI 变化：验证 OAuth URL/device code、文本或 select prompt、取消和登录后当前 session reload。
 - UI 行为使用真实 Renderer 路径检查；类型与构建最终运行 `bun run verify`。桌面 WebView 特有行为不能只由浏览器单元测试证明。
 
-具体交付路径包括：workspace 切换后旧 session 不残留；并行 session 的旧 event 不污染当前视图；prompt、steer、follow-up、abort 保持不同语义；登录后资源与当前 session 重新加载；文件 binary/truncated 状态正确展示；thinking 显示偏好不改变模型运行配置。UI 布局或交互变化使用真实 Renderer 检查，桌面 WebView 特有行为必须在 Electrobun 应用中验证。
+具体交付路径包括：切换 workspace/session 只改变当前导航，后台 session 持续接收自己的事件；切回后复用 snapshot 与 SessionView；prompt、steer、follow-up、abort 保持不同语义；登录后资源和当前 session 重新加载；thinking 显示偏好不改变模型运行配置。
