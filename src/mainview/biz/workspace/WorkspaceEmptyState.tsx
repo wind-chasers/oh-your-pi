@@ -1,6 +1,8 @@
 import { Bot, FolderOpen, Plus } from "lucide-react";
 import { type ReactElement } from "react";
 import { Button } from "@view/components/ui/button";
+import { AppDisabledAtom } from "@view/states/activity.atom";
+import { CreateSessionMutation } from "@view/states/session";
 
 export function WorkspacePlaceholder(): ReactElement {
 	return (
@@ -18,15 +20,11 @@ export function WorkspacePlaceholder(): ReactElement {
 	);
 }
 
-type WorkspaceReadyProps = {
-	onCreateSession: () => Promise<void>;
-	onOpenFiles: () => void;
-};
+type WorkspaceReadyProps = { onOpenFiles: () => void };
 
-export function WorkspaceReady({
-	onCreateSession,
-	onOpenFiles,
-}: WorkspaceReadyProps): ReactElement {
+export function WorkspaceReady({ onOpenFiles }: WorkspaceReadyProps): ReactElement {
+	const disabled = AppDisabledAtom.use();
+	const createSession = CreateSessionMutation.use();
 	return (
 		<section className="grid h-full place-items-center p-8">
 			<div className="max-w-sm text-center">
@@ -38,7 +36,7 @@ export function WorkspaceReady({
 					选择左侧已有会话，或创建一个新的 Pi 会话。
 				</p>
 				<div className="mt-5 flex justify-center gap-2">
-					<Button onClick={() => void onCreateSession()} type="button">
+					<Button disabled={disabled} onClick={() => void createSession()} type="button">
 						<Plus data-icon="inline-start" />
 						新建会话
 					</Button>

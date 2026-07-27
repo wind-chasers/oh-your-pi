@@ -1,6 +1,5 @@
-import { atom } from '@view/atom';
+import type { PiOpenedSession, PiWorkspaceSnapshot } from "@shared/pi-contract";
+import { atom } from "@view/atom";
 
-
-export const CurrentWorkSpaceAtom = atom('');
-
-export const CurrentSessionAtom = atom<null | string>(null);
+export const WorkspaceAtom = atom<PiWorkspaceSnapshot | undefined>(undefined);
+export const OpenedSessionAtom = atom<PiOpenedSession | undefined>(undefined);

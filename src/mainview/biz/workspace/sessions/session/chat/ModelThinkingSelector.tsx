@@ -1,9 +1,11 @@
 import { type ReactElement, useState } from "react";
-import type { PiAuthenticationStatus, PiOpenedSession, PiThinkingLevel } from "@shared/pi-contract";
+import type { PiOpenedSession, PiThinkingLevel } from "@shared/pi-contract";
 import {
 	setPiSessionModel,
 	setPiSessionThinking,
 } from "@view/lib/pi-client";
+import { AuthenticationAtom } from "@view/states/authentication.atom";
+import { OpenedSessionAtom } from "@view/states/current.atom";
 import {
 	Select,
 	SelectContent,
@@ -13,19 +15,13 @@ import {
 	SelectValue,
 } from "@view/components/ui/select";
 
-type ModelThinkingSelectorProps = {
-	authentication: PiAuthenticationStatus[];
-	onSessionUpdate: (session: PiOpenedSession) => void;
-	openedSession: PiOpenedSession;
-};
 
-export function ModelThinkingSelector({
-	authentication,
-	onSessionUpdate,
-	openedSession,
-}: ModelThinkingSelectorProps): ReactElement | null {
+export function ModelThinkingSelector(): ReactElement | null {
+	const authentication = AuthenticationAtom.useData() ?? [];
+	const [openedSession, setOpenedSession] = OpenedSessionAtom.use();
 	const [error, setError] = useState<string>();
 	const [isUpdating, setIsUpdating] = useState(false);
+	if (!openedSession) return null;
 	const { availableThinkingLevels, isStreaming, model, models, sessionPath, thinkingLevel } =
 		openedSession.runtime;
 	const availableModels = models.filter((candidate) =>
@@ -51,7 +47,7 @@ export function ModelThinkingSelector({
 		setError(undefined);
 		setIsUpdating(true);
 		try {
-			onSessionUpdate(await action());
+			setOpenedSession(await action());
 		} catch (requestError) {
 			setError(requestError instanceof Error ? requestError.message : fallback);
 		} finally {

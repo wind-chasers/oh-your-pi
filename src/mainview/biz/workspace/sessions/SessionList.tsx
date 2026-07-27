@@ -2,24 +2,22 @@ import { Plus } from "lucide-react";
 import { type ReactElement, useMemo, useState } from "react";
 import type { PiWorkspaceSnapshot } from "@shared/pi-contract";
 import { Button } from "@view/components/ui/button";
+import { AppDisabledAtom } from "@view/states/activity.atom";
+import { OpenedSessionAtom, WorkspaceAtom } from "@view/states/current.atom";
+import {
+	ContinueRecentSessionMutation,
+	CreateSessionMutation,
+	SelectSessionMutation,
+} from "@view/states/session";
 
-type SessionListProps = {
-	disabled: boolean;
-	onContinueRecentSession: () => Promise<void>;
-	onCreateSession: () => Promise<void>;
-	onSelectSession: (sessionPath: string) => Promise<void>;
-	selectedSessionPath?: string;
-	sessions: PiWorkspaceSnapshot["sessions"];
-};
 
-export function SessionList({
-	disabled,
-	onContinueRecentSession,
-	onCreateSession,
-	onSelectSession,
-	selectedSessionPath,
-	sessions,
-}: SessionListProps): ReactElement {
+export function SessionList(): ReactElement {
+	const disabled = AppDisabledAtom.use();
+	const sessions = WorkspaceAtom.useData()?.sessions ?? [];
+	const selectedSessionPath = OpenedSessionAtom.useData()?.runtime.sessionPath;
+	const continueRecentSession = ContinueRecentSessionMutation.use();
+	const createSession = CreateSessionMutation.use();
+	const selectSession = SelectSessionMutation.use();
 	const [query, setQuery] = useState("");
 	const visibleSessions = useMemo(() => {
 		const normalizedQuery = query.trim().toLocaleLowerCase();
@@ -48,7 +46,7 @@ export function SessionList({
 				<Button
 					aria-label="新建会话"
 					disabled={disabled}
-					onClick={() => void onCreateSession()}
+					onClick={() => void createSession()}
 					size="icon-sm"
 					type="button"
 					variant="ghost"
@@ -78,7 +76,7 @@ export function SessionList({
 						disabled={disabled}
 						isSelected={selectedSessionPath === session.path}
 						key={session.id}
-						onSelect={onSelectSession}
+						onSelect={selectSession}
 						session={session}
 					/>
 				))}
@@ -86,7 +84,7 @@ export function SessionList({
 					<EmptySessionList
 						disabled={disabled}
 						hasSessions={sessions.length > 0}
-						onContinue={onContinueRecentSession}
+						onContinue={continueRecentSession}
 					/>
 				) : null}
 			</nav>

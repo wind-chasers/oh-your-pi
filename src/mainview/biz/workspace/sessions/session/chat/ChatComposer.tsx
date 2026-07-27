@@ -1,11 +1,10 @@
 import { LoaderCircle, Send, ShieldCheck } from "lucide-react";
 import { type FormEvent, type ReactElement } from "react";
-import type { PiAuthenticationStatus, PiOpenedSession } from "@shared/pi-contract";
 import { Button } from "@view/components/ui/button";
+import { AuthenticationDialogOpenAtom } from "@view/states/authentication.atom";
 import { ModelThinkingSelector } from "./ModelThinkingSelector";
 
 type ChatComposerProps = {
-	authentication: PiAuthenticationStatus[];
 	draft: string;
 	error?: string;
 	hasAvailableCredential: boolean;
@@ -14,14 +13,10 @@ type ChatComposerProps = {
 	isStreaming: boolean;
 	onChange: (value: string) => void;
 	onFollowUp: () => Promise<void>;
-	onOpenAuthentication: () => void;
-	onSessionUpdate: (session: PiOpenedSession) => void;
 	onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
-	openedSession: PiOpenedSession;
 };
 
 export function ChatComposer({
-	authentication,
 	draft,
 	error,
 	hasAvailableCredential,
@@ -30,11 +25,9 @@ export function ChatComposer({
 	isStreaming,
 	onChange,
 	onFollowUp,
-	onOpenAuthentication,
-	onSessionUpdate,
 	onSubmit,
-	openedSession,
 }: ChatComposerProps): ReactElement {
+	const setAuthenticationOpen = AuthenticationDialogOpenAtom.useChange();
 	const canCompose = hasAvailableCredential && hasAvailableModel;
 
 	function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>): void {
@@ -60,15 +53,11 @@ export function ChatComposer({
 				</div>
 				<div className="mt-2 flex items-center justify-between gap-3 px-0.5">
 					<div className="flex gap-2">
-						<ModelThinkingSelector
-							authentication={authentication}
-							onSessionUpdate={onSessionUpdate}
-							openedSession={openedSession}
-						/>
+						<ModelThinkingSelector />
 					</div>
 					<div className="flex gap-2 items-center">
 						{!hasAvailableCredential ? (
-							<Button onClick={onOpenAuthentication} size="sm" type="button">
+							<Button onClick={() => setAuthenticationOpen(true)} size="sm" type="button">
 								<ShieldCheck aria-hidden />
 								连接模型提供商
 							</Button>

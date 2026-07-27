@@ -17,25 +17,18 @@ import {
 	respondPiAuthenticationPrompt,
 	subscribeToPiAuthenticationEvents,
 } from "@view/lib/pi-client";
+import {
+	AuthenticationAtom,
+	AuthenticationDialogOpenAtom,
+} from "@view/states/authentication.atom";
 import { AuthenticationStep } from "./AuthenticationStep";
 import { ProviderList } from "./ProviderList";
 import type { ActiveLogin } from "./types";
 
-type ProviderAuthenticationDialogProps = {
-	authentication?: PiAuthenticationStatus[];
-	onCancel: (provider: string) => Promise<void>;
-	onLogin: (provider: string, method: PiAuthenticationMethod) => Promise<void>;
-	onOpenChange: (open: boolean) => void;
-	open: boolean;
-};
 
-export function ProviderAuthenticationDialog({
-	authentication,
-	onCancel,
-	onLogin,
-	onOpenChange,
-	open,
-}: ProviderAuthenticationDialogProps): ReactElement {
+export function ProviderAuthenticationDialog(): ReactElement {
+	const [authentication, authenticationActions] = AuthenticationAtom.use();
+	const [open, setOpen] = AuthenticationDialogOpenAtom.use();
 	const [activeLogin, setActiveLogin] = useState<ActiveLogin>();
 	const [error, setError] = useState<string>();
 	const [promptValue, setPromptValue] = useState("");
@@ -67,7 +60,7 @@ export function ProviderAuthenticationDialog({
 		activeProviderRef.current = provider.provider;
 		setActiveLogin({ event: undefined, provider, status: "active" });
 		try {
-			await onLogin(provider.provider, method);
+			await authenticationActions.login(provider.provider, method);
 			setActiveLogin((current) => current ? { ...current, status: "complete" } : current);
 		} catch (requestError) {
 			setError(toErrorMessage(requestError, "无法完成提供商登录。"));
@@ -99,25 +92,25 @@ export function ProviderAuthenticationDialog({
 	}
 
 	async function handleReturnToProviders(): Promise<void> {
-		if (activeLogin) await onCancel(activeLogin.provider.provider);
+		if (activeLogin) await authenticationActions.cancel(activeLogin.provider.provider);
 		reset();
 	}
 
 	async function handleOpenChange(nextOpen: boolean): Promise<void> {
 		if (nextOpen) {
-			onOpenChange(true);
+			setOpen(true);
 			return;
 		}
 		if (activeLogin?.status === "active") {
 			try {
-				await onCancel(activeLogin.provider.provider);
+				await authenticationActions.cancel(activeLogin.provider.provider);
 			} catch (requestError) {
 				setError(toErrorMessage(requestError, "无法取消登录。"));
 				return;
 			}
 		}
 		reset();
-		onOpenChange(false);
+		setOpen(false);
 	}
 
 	return (

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { updateRecentWorkspaces } from "./recent-workspaces";
+import { updateRecentWorkspaces } from "./preferences.atom";
 
 describe("工作区列表", () => {
 	test("选择已有工作区时保持原有顺序", () => {

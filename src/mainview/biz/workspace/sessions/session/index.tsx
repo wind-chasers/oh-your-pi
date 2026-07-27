@@ -1,13 +1,13 @@
 import {
 	type FormEvent,
 	type ReactElement,
+	useCallback,
 	useEffect,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
 import {
-	type PiAuthenticationStatus,
 	type PiOpenedSession,
 	type PiSessionEvent,
 	type PiToolPermissionRequest,
@@ -21,34 +21,39 @@ import {
 	subscribeToPiSessionEvents,
 	subscribeToPiToolPermissionRequests,
 } from "@view/lib/pi-client";
+import { AuthenticationAtom } from "@view/states/authentication.atom";
+import { OpenedSessionAtom } from "@view/states/current.atom";
+import { ShowThinkingAtom } from "@view/states/preferences.atom";
+import { RefreshSessionMutation } from "@view/states/session";
 import { ChatComposer } from "./chat/ChatComposer";
 import { ChatHeader } from "./chat/ChatHeader";
 import { ChatTranscript, type ToolStatus } from "./chat/ChatTranscript";
 import { ToolPermissionPrompt } from "./chat/ToolPermissionPrompt";
 
 type SessionChatProps = {
-	authentication: PiAuthenticationStatus[];
 	isFileTreeOpen: boolean;
-	onOpenAuthentication: () => void;
-	onRefresh: () => Promise<void>;
-	onSessionUpdate: (session: PiOpenedSession) => void;
-	onStreamingChange: (isStreaming: boolean) => void;
 	onToggleFileTree: () => void;
-	openedSession: PiOpenedSession;
-	showThinking: boolean;
 };
 
-export function SessionChat({
-	authentication,
+type SessionChatContentProps = SessionChatProps & {
+	openedSession: PiOpenedSession;
+};
+
+export function SessionChat(props: SessionChatProps): ReactElement | null {
+	const openedSession = OpenedSessionAtom.useData();
+	if (!openedSession) return null;
+	return <SessionChatContent {...props} openedSession={openedSession} />;
+}
+
+function SessionChatContent({
 	isFileTreeOpen,
-	onOpenAuthentication,
-	onRefresh,
-	onSessionUpdate,
-	onStreamingChange,
 	onToggleFileTree,
 	openedSession,
-	showThinking,
-}: SessionChatProps): ReactElement {
+}: SessionChatContentProps): ReactElement {
+	const authentication = AuthenticationAtom.useData() ?? [];
+	const showThinking = ShowThinkingAtom.useData();
+	const refreshSession = RefreshSessionMutation.use();
+	const setOpenedSession = OpenedSessionAtom.useChange();
 	const [draft, setDraft] = useState("");
 	const [error, setError] = useState<string>();
 	const [isSending, setIsSending] = useState(false);
@@ -63,7 +68,15 @@ export function SessionChat({
 		PiToolPermissionRequest[]
 	>([]);
 	const transcriptEndRef = useRef<HTMLDivElement>(null);
-	const onRefreshRef = useRef(onRefresh);
+	const setStreaming = useCallback((nextValue: boolean): void => {
+		setOpenedSession((current) => {
+			if (!current || current.runtime.isStreaming === nextValue) return current;
+			return {
+				...current,
+				runtime: { ...current.runtime, isStreaming: nextValue },
+			};
+		});
+	}, [setOpenedSession]);
 	const selectedModel = openedSession.runtime.model;
 	const hasAvailableCredential = authentication.some((provider) => provider.status === "available");
 	const hasAvailableModel =
@@ -74,9 +87,6 @@ export function SessionChat({
 		);
 	const sortedTools = useMemo(() => Object.entries(tools), [tools]);
 
-	useEffect(() => {
-		onRefreshRef.current = onRefresh;
-	}, [onRefresh]);
 
 	useEffect(() => {
 		setIsStreaming(openedSession.runtime.isStreaming);
@@ -84,8 +94,8 @@ export function SessionChat({
 		setThinkingText("");
 		setTools({});
 		setPermissionRequests([]);
-		onStreamingChange(openedSession.runtime.isStreaming);
-	}, [onStreamingChange, openedSession.runtime.sessionPath]);
+		setStreaming(openedSession.runtime.isStreaming);
+	}, [openedSession.runtime.sessionPath, setStreaming]);
 
 	useEffect(() => {
 		transcriptEndRef.current?.scrollIntoView({
@@ -103,7 +113,7 @@ export function SessionChat({
 	useEffect(() => {
 		function setStreamingState(nextValue: boolean): void {
 			setIsStreaming(nextValue);
-			onStreamingChange(nextValue);
+			setStreaming(nextValue);
 		}
 
 		function handleSessionEvent(event: PiSessionEvent): void {
@@ -141,8 +151,7 @@ export function SessionChat({
 					setThinkingText("");
 					setTools({});
 					setPermissionRequests([]);
-					void onRefreshRef
-						.current()
+					void refreshSession()
 						.catch((refreshError: unknown) =>
 							setError(toErrorMessage(refreshError, "无法刷新 Pi 会话。")),
 						);
@@ -169,7 +178,7 @@ export function SessionChat({
 		}
 
 		return subscribeToPiSessionEvents(handleSessionEvent);
-	}, [onStreamingChange, openedSession.runtime.sessionPath]);
+	}, [openedSession.runtime.sessionPath, refreshSession, setStreaming]);
 
 	useEffect(() => {
 		function handleToolPermissionRequest(
@@ -212,7 +221,7 @@ export function SessionChat({
 				setTools({});
 				setPermissionRequests([]);
 				setIsStreaming(true);
-				onStreamingChange(true);
+				setStreaming(true);
 				await promptPiSession({
 					sessionPath: openedSession.runtime.sessionPath,
 					text,
@@ -222,7 +231,7 @@ export function SessionChat({
 		} catch (requestError) {
 			setPendingUserMessage(undefined);
 			setIsStreaming(false);
-			onStreamingChange(false);
+			setStreaming(false);
 			setError(toErrorMessage(requestError, "无法发送消息。"));
 		} finally {
 			setIsSending(false);
@@ -252,7 +261,7 @@ export function SessionChat({
 		try {
 			await abortPiSession({ sessionPath: openedSession.runtime.sessionPath });
 			setIsStreaming(false);
-			onStreamingChange(false);
+			setStreaming(false);
 		} catch (requestError) {
 			setError(toErrorMessage(requestError, "无法停止 Pi 会话。"));
 		}
@@ -320,18 +329,14 @@ export function SessionChat({
 				/>
 			) : null}
 			<ChatComposer
-				authentication={authentication}
 				draft={draft}
 				error={error}
 				hasAvailableCredential={hasAvailableCredential}
 				hasAvailableModel={hasAvailableModel}
 				isSending={isSending}
 				isStreaming={isStreaming}
-				onSessionUpdate={onSessionUpdate}
-				openedSession={openedSession}
 				onChange={setDraft}
 				onFollowUp={handleFollowUp}
-				onOpenAuthentication={onOpenAuthentication}
 				onSubmit={handleSubmit}
 			/>
 		</section>

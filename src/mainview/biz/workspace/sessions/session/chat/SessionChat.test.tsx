@@ -6,6 +6,9 @@ import type {
 	PiOpenedSession,
 	PiSessionSummary,
 } from "@shared/pi-contract";
+import type { ReactElement } from "react";
+import { WithStore } from "@view/atom";
+import { OpenedSessionAtom } from "@view/states/current.atom";
 
 mock.module("electrobun/view", () => ({
 	Electroview: {
@@ -20,7 +23,10 @@ mock.module("electrobun/view", () => ({
 (globalThis as { window?: unknown }).window = {};
 
 // Dynamic loading is required so the Electrobun mock is installed first.
-const { SessionChat } = await import("..");
+const [{ SessionChat }, { AuthenticationAtom }] = await Promise.all([
+	import(".."),
+	import("@view/states/authentication.atom"),
+]);
 
 const session: PiSessionSummary = {
 	id: "session-id",
@@ -92,21 +98,31 @@ const conversationEntries: PiConversationEntry[] = [
 	},
 ];
 
-describe("SessionChat", () => {
-	test("有可用模型时直接启用消息编辑器", () => {
-		const html = renderToStaticMarkup(
+function renderSessionChat(
+	currentAuthentication: PiAuthenticationStatus[],
+	currentSession: PiOpenedSession,
+): string {
+	function Fixture(): ReactElement {
+		AuthenticationAtom.useChange().setStatuses(currentAuthentication);
+		OpenedSessionAtom.useChange()(currentSession);
+		return (
 			<SessionChat
-				authentication={authentication}
 				isFileTreeOpen={false}
-				onOpenAuthentication={() => {}}
-				onSessionUpdate={() => {}}
-				onRefresh={async () => {}}
-				onStreamingChange={() => {}}
 				onToggleFileTree={() => {}}
-				openedSession={openedSession}
-				showThinking={false}
 			/>
 		);
+	}
+
+	return renderToStaticMarkup(
+		<WithStore>
+			<Fixture />
+		</WithStore>,
+	);
+}
+
+describe("SessionChat", () => {
+	test("有可用模型时直接启用消息编辑器", () => {
+		const html = renderSessionChat(authentication, openedSession);
 		expect(html).toContain('aria-label="模型"');
 		expect(html).toContain('aria-label="思考级别"');
 		expect(html).not.toContain("Unavailable model");
@@ -122,25 +138,13 @@ describe("SessionChat", () => {
 	});
 
 	test("用户与助手消息不显示冗余说话人标签", () => {
-		const html = renderToStaticMarkup(
-			<SessionChat
-				authentication={authentication}
-				isFileTreeOpen={false}
-				onOpenAuthentication={() => {}}
-				onRefresh={async () => {}}
-				onSessionUpdate={() => {}}
-				onStreamingChange={() => {}}
-				onToggleFileTree={() => {}}
-				openedSession={{
-					...openedSession,
-					transcript: {
-						...openedSession.transcript,
-						entries: conversationEntries,
-					},
-				}}
-				showThinking={false}
-			/>
-		);
+		const html = renderSessionChat(authentication, {
+			...openedSession,
+			transcript: {
+				...openedSession.transcript,
+				entries: conversationEntries,
+			},
+		});
 
 		expect(html).toContain("老铁，我又来了");
 		expect(html).toContain("欢迎回来");
@@ -149,19 +153,7 @@ describe("SessionChat", () => {
 	});
 
 	test("缺少凭据时显示连接提供商操作而非发送按钮", () => {
-		const html = renderToStaticMarkup(
-			<SessionChat
-				authentication={[]}
-				isFileTreeOpen={false}
-				onOpenAuthentication={() => {}}
-				onSessionUpdate={() => {}}
-				onRefresh={async () => {}}
-				onStreamingChange={() => {}}
-				onToggleFileTree={() => {}}
-				openedSession={openedSession}
-				showThinking={false}
-			/>,
-		);
+		const html = renderSessionChat([], openedSession);
 
 		expect(html).toContain("连接模型提供商");
 		expect(html).not.toContain(">发送</button>");
