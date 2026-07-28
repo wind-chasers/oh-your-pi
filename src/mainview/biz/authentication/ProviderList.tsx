@@ -1,6 +1,6 @@
 import { CheckCircle2, CircleDashed, KeyRound, LoaderCircle, LogIn } from "lucide-react";
 import { type ReactElement } from "react";
-import type { PiAuthenticationMethod, PiAuthenticationStatus } from "@shared/pi-contract";
+import type { AuthType, PiAuthenticationStatus } from "@shared/pi-contract";
 import { Button } from "@view/components/ui/button";
 import type { ProviderLoginHandler } from "./types";
 
@@ -112,7 +112,7 @@ function providerStatusLabel(status: PiAuthenticationStatus["status"]): string {
 	return "未连接";
 }
 
-function loginActionLabel(method: PiAuthenticationMethod, connected: boolean): string {
+function loginActionLabel(method: AuthType, connected: boolean): string {
 	if (method === "oauth") return connected ? "重新登录" : "OAuth 登录";
 	return connected ? "重新配置" : "配置 API Key";
 }

@@ -1,191 +1,82 @@
+import { realpath, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import {
-	createAgentSessionFromServices,
-	createAgentSessionServices,
-	getAgentDir,
-	ModelRuntime,
-	SessionManager,
-	type AgentSession,
-	type AgentSessionEvent,
-	type AgentSessionServices,
-	type CreateAgentSessionServicesOptions,
-	type SessionTreeNode,
-} from "@earendil-works/pi-coding-agent";
+import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
+import { getAgentDir, ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { PiAuthentication } from "./authentication";
+import { PiSessionRegistry } from "./session/registry";
+import { PiSession } from "./session";
+import { PiWorkspace } from "./workspace";
 
-type ExtensionFactory = NonNullable<
-	NonNullable<CreateAgentSessionServicesOptions["resourceLoaderOptions"]>["extensionFactories"]
->[number];
-
-type PiSessionHostOptions = {
-	createExtensions: (getSessionPath: () => string | undefined) => ExtensionFactory[];
-	modelRuntime: ModelRuntime;
-	onDispose: (sessionPath: string) => void;
-	onSessionEvent: (sessionPath: string, event: AgentSessionEvent) => void;
-	workspacePath: string;
+type PiBunRuntime = {
+	version: string;
+	Image?: unknown;
 };
 
-export type PiSessionHostState = {
-	cwd: string;
-	session: AgentSession;
-	services: AgentSessionServices;
-};
-
-/** Owns one live SDK session. It never replaces this host with another session. */
-export class PiSessionHost {
-	private services: AgentSessionServices | undefined;
-	private session: AgentSession | undefined;
-	private sessionPath: string | undefined;
-	private unsubscribe: (() => void) | undefined;
-
-	private constructor(private readonly options: PiSessionHostOptions) {}
-
-	static async create(options: PiSessionHostOptions, sessionManager: SessionManager): Promise<PiSessionHost> {
-		const host = new PiSessionHost(options);
-		await host.createSession(sessionManager);
-		return host;
-	}
-
-	getSession(): AgentSession {
-		if (!this.session) throw new Error("Pi 会话已经关闭。");
-		return this.session;
-	}
-
-	getServices(): AgentSessionServices {
-		if (!this.services) throw new Error("Pi 会话已经关闭。");
-		return this.services;
-	}
-
-	getSessionPath(): string {
-		if (!this.sessionPath) throw new Error("Pi 未创建持久化会话文件。");
-		return this.sessionPath;
-	}
-
-	getRuntimeState(): PiSessionHostState {
-		return {
-			cwd: this.getServices().cwd,
-			session: this.getSession(),
-			services: this.getServices(),
-		};
-	}
-
-	async rebuild(): Promise<void> {
-		const sessionPath = this.getSessionPath();
-		const selectedEntryId = this.getSession().sessionManager.getLeafId();
-		await this.disposeSession();
-		await this.createSession(SessionManager.open(sessionPath));
-		if (selectedEntryId && hasTreeEntry(this.getSession().sessionManager.getTree(), selectedEntryId)) {
-			await this.getSession().navigateTree(selectedEntryId, { summarize: false });
-		}
-	}
-
-	async dispose(): Promise<void> {
-		if (!this.session) return;
-		const sessionPath = this.getSessionPath();
-		await this.disposeSession();
-		this.options.onDispose(sessionPath);
-	}
-
-	private async createSession(sessionManager: SessionManager): Promise<void> {
-		const services = await createAgentSessionServices({
-			agentDir: getAgentDir(),
-			cwd: this.options.workspacePath,
-			modelRuntime: this.options.modelRuntime,
-			resourceLoaderOptions: {
-				extensionFactories: this.options.createExtensions(() => this.sessionPath),
-			},
-		});
-		const { session } = await createAgentSessionFromServices({ services, sessionManager });
-		this.services = services;
-		this.session = session;
-		this.sessionPath = requireSessionPath(session);
-		await session.bindExtensions({});
-		const sessionPath = this.sessionPath;
-		this.unsubscribe = session.subscribe((event) => this.options.onSessionEvent(sessionPath, event));
-	}
-
-	private async disposeSession(): Promise<void> {
-		const session = this.getSession();
-		this.unsubscribe?.();
-		this.unsubscribe = undefined;
-		this.session = undefined;
-		this.services = undefined;
-		await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
-		session.dispose();
+export function assertPiRuntimeCapabilities(runtime: PiBunRuntime = Bun): void {
+	if (typeof runtime.Image !== "function") {
+		throw new Error(`桌面运行时 Bun ${runtime.version} 不支持 Bun.Image；需要 Bun 1.3.14 或更高版本。`);
 	}
 }
 
-type PiWorkspaceHostOptions = Omit<PiSessionHostOptions, "modelRuntime" | "workspacePath" | "onDispose"> & {
-	onSessionDispose: (sessionPath: string) => void;
-	workspacePath: string;
-};
+export function registerPiOAuthFlows(): void {
+	registerBunOAuthFlows();
+}
 
-/** Caches live sessions for one workspace without choosing an active one. */
-export class PiWorkspaceHost {
-	private readonly sessions = new Map<string, PiSessionHost>();
+export class PiRuntime {
+	readonly authentication: PiAuthentication;
+	private disposed = false;
+	private readonly workspaces = new Map<string, PiWorkspace>();
 
 	private constructor(
-		private readonly options: PiWorkspaceHostOptions,
+		private readonly sessions: PiSessionRegistry,
+		private readonly agentDir: string,
 		private readonly modelRuntime: ModelRuntime,
-	) {}
+	) {
+		this.authentication = new PiAuthentication(modelRuntime);
+	}
 
-	static async create(options: PiWorkspaceHostOptions): Promise<PiWorkspaceHost> {
+	static async create(): Promise<PiRuntime> {
 		const agentDir = getAgentDir();
 		const modelRuntime = await ModelRuntime.create({
 			authPath: join(agentDir, "auth.json"),
 			modelsPath: join(agentDir, "models.json"),
 		});
-		return new PiWorkspaceHost(options, modelRuntime);
+		return new PiRuntime(new PiSessionRegistry(agentDir, modelRuntime), agentDir, modelRuntime);
 	}
 
-	getModelRuntime(): ModelRuntime {
-		return this.modelRuntime;
-	}
-
-	getSession(sessionPath: string): PiSessionHost {
-		const host = this.sessions.get(resolve(sessionPath));
-		if (!host) throw new Error("该会话尚未在主进程打开。");
-		return host;
-	}
-
-	async open(sessionManager: SessionManager): Promise<PiSessionHost> {
-		const sessionPath = sessionManager.getSessionFile();
-		if (!sessionPath) throw new Error("Pi 未创建持久化会话文件。");
-		const key = resolve(sessionPath);
-		const existing = this.sessions.get(key);
+	async openWorkspace(workspacePath: string): Promise<PiWorkspace> {
+		if (this.disposed) throw new Error("Pi runtime 已经关闭。");
+		const resolvedWorkspacePath = await resolveWorkspacePath(workspacePath);
+		const existing = this.workspaces.get(resolvedWorkspacePath);
 		if (existing) return existing;
-
-		const host = await PiSessionHost.create(
-			{
-				...this.options,
-				modelRuntime: this.modelRuntime,
-				onDispose: (path) => this.options.onSessionDispose(path),
-			},
-			sessionManager,
+		const workspace = new PiWorkspace(
+			resolvedWorkspacePath,
+			this.agentDir,
+			this.modelRuntime,
+			this.sessions,
 		);
-		this.sessions.set(key, host);
-		return host;
+		this.workspaces.set(resolvedWorkspacePath, workspace);
+		return workspace;
 	}
 
-	async createSession(): Promise<PiSessionHost> {
-		return this.open(SessionManager.create(this.options.workspacePath));
+	getSession(sessionPath: string): PiSession {
+		return this.sessions.get(sessionPath);
 	}
 
-	async continueRecentSession(): Promise<PiSessionHost> {
-		return this.open(SessionManager.continueRecent(this.options.workspacePath));
+	async closeSession(sessionPath: string): Promise<void> {
+		await this.sessions.close(sessionPath);
 	}
 
-	async rebuildIdleSessions(): Promise<void> {
-		for (const host of this.sessions.values()) {
-			if (host.getSession().isIdle) await host.rebuild();
-		}
+	async dispose(): Promise<void> {
+		if (this.disposed) return;
+		this.disposed = true;
+		this.workspaces.clear();
+		await this.sessions.dispose();
 	}
 }
 
-function requireSessionPath(session: AgentSession): string {
-	if (!session.sessionFile) throw new Error("Pi 未创建持久化会话文件。");
-	return session.sessionFile;
-}
-
-function hasTreeEntry(nodes: SessionTreeNode[], entryId: string): boolean {
-	return nodes.some((node) => node.entry.id === entryId || hasTreeEntry(node.children, entryId));
+async function resolveWorkspacePath(workspacePath: string): Promise<string> {
+	const absolutePath = resolve(workspacePath);
+	if (!(await stat(absolutePath)).isDirectory()) throw new Error(`Pi 工作区不是目录：${absolutePath}`);
+	return realpath(absolutePath);
 }

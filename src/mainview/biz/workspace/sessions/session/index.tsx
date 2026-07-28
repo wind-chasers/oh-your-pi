@@ -1,91 +1,49 @@
-import {
-	type FormEvent,
-	type ReactElement,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
-import {
-	type PiAuthenticationStatus,
-	type PiOpenedSession,
-	type PiSessionEvent,
-	type PiToolPermissionRequest,
-} from "@shared/pi-contract";
-import {
-	abortPiSession,
-	followUpPiSession,
-	promptPiSession,
-	respondToPiToolPermission,
-	steerPiSession,
-	subscribeToPiSessionEvents,
-	subscribeToPiToolPermissionRequests,
-} from "@view/lib/pi-client";
-import { ChatComposer } from "./chat/ChatComposer";
+import { type ReactElement, useEffect, useRef } from "react";
+import { useChatSession } from "@view/chat-store";
+import { WorkspaceAtom } from "@view/states/current.atom";
+import { ShowThinkingAtom } from "@view/states/preferences.atom";
+import { ChatComposer } from "./chat/composer";
 import { ChatHeader } from "./chat/ChatHeader";
-import { ChatTranscript, type ToolStatus } from "./chat/ChatTranscript";
+import { ChatTranscript } from "./chat/ChatTranscript";
 import { ToolPermissionPrompt } from "./chat/ToolPermissionPrompt";
 
 type SessionChatProps = {
-	authentication: PiAuthenticationStatus[];
 	isFileTreeOpen: boolean;
-	onOpenAuthentication: () => void;
-	onRefresh: () => Promise<void>;
-	onSessionUpdate: (session: PiOpenedSession) => void;
-	onStreamingChange: (isStreaming: boolean) => void;
 	onToggleFileTree: () => void;
-	openedSession: PiOpenedSession;
-	showThinking: boolean;
+	sessionId: string;
+	sessionPath: string;
+	workspacePath: string;
 };
 
 export function SessionChat({
-	authentication,
 	isFileTreeOpen,
-	onOpenAuthentication,
-	onRefresh,
-	onSessionUpdate,
-	onStreamingChange,
 	onToggleFileTree,
-	openedSession,
-	showThinking,
+	sessionId,
+	sessionPath,
+	workspacePath,
 }: SessionChatProps): ReactElement {
-	const [draft, setDraft] = useState("");
-	const [error, setError] = useState<string>();
-	const [isSending, setIsSending] = useState(false);
-	const [isStreaming, setIsStreaming] = useState(
-		openedSession.runtime.isStreaming,
-	);
-	const [pendingUserMessage, setPendingUserMessage] = useState<string>();
-	const [streamedText, setStreamedText] = useState("");
-	const [thinkingText, setThinkingText] = useState("");
-	const [tools, setTools] = useState<Record<string, ToolStatus>>({});
-	const [permissionRequests, setPermissionRequests] = useState<
-		PiToolPermissionRequest[]
-	>([]);
+	const [snapshot, session] = useChatSession(workspacePath, sessionId, sessionPath);
+	const showThinking = ShowThinkingAtom.useData();
+	const setWorkspace = WorkspaceAtom.useChange();
 	const transcriptEndRef = useRef<HTMLDivElement>(null);
-	const onRefreshRef = useRef(onRefresh);
-	const selectedModel = openedSession.runtime.model;
-	const hasAvailableCredential = authentication.some((provider) => provider.status === "available");
-	const hasAvailableModel =
-		selectedModel !== null &&
-		authentication.some(
-			(provider) =>
-				provider.provider === selectedModel.provider && provider.status === "available",
-		);
-	const sortedTools = useMemo(() => Object.entries(tools), [tools]);
+	const openedSession = snapshot.openedSession;
+	const renderItems = session.view.items;
+	const isStreaming = openedSession?.runtime.isStreaming ?? false;
+	const sessionSummary = openedSession?.transcript.session;
 
 	useEffect(() => {
-		onRefreshRef.current = onRefresh;
-	}, [onRefresh]);
-
-	useEffect(() => {
-		setIsStreaming(openedSession.runtime.isStreaming);
-		setStreamedText("");
-		setThinkingText("");
-		setTools({});
-		setPermissionRequests([]);
-		onStreamingChange(openedSession.runtime.isStreaming);
-	}, [onStreamingChange, openedSession.runtime.sessionPath]);
+		if (!sessionSummary) return;
+		setWorkspace((current) => {
+			if (!current || current.workspacePath !== sessionSummary.workspacePath) return current;
+			const sessionIndex = current.sessions.findIndex(
+				(candidate) => candidate.id === sessionSummary.id,
+			);
+			if (sessionIndex < 0 || current.sessions[sessionIndex] === sessionSummary) return current;
+			const sessions = [...current.sessions];
+			sessions[sessionIndex] = sessionSummary;
+			return { ...current, sessions };
+		});
+	}, [sessionSummary, setWorkspace]);
 
 	useEffect(() => {
 		transcriptEndRef.current?.scrollIntoView({
@@ -93,262 +51,88 @@ export function SessionChat({
 			block: "end",
 		});
 	}, [
-		openedSession.transcript.entries.length,
-		pendingUserMessage,
-		streamedText,
-		thinkingText,
-		tools,
+		renderItems.length,
+		snapshot.pendingUserMessage,
+		snapshot.streamedText,
+		snapshot.thinkingText,
+		snapshot.tools,
 	]);
 
-	useEffect(() => {
-		function setStreamingState(nextValue: boolean): void {
-			setIsStreaming(nextValue);
-			onStreamingChange(nextValue);
-		}
-
-		function handleSessionEvent(event: PiSessionEvent): void {
-			if (event.sessionPath !== openedSession.runtime.sessionPath) return;
-			switch (event.type) {
-				case "agent_start":
-					setError(undefined);
-					setStreamedText("");
-					setThinkingText("");
-					setTools({});
-					setPermissionRequests([]);
-					setStreamingState(true);
-					return;
-				case "assistant_text_delta":
-					setStreamedText((text) => text + (event.text ?? ""));
-					return;
-				case "assistant_thinking_delta":
-					setThinkingText((text) => text + (event.text ?? ""));
-					return;
-				case "tool_start":
-					updateTool(event, "running");
-					return;
-				case "tool_end":
-					updateTool(event, "complete");
-					return;
-				case "error":
-					setError(formatSessionError(event.text));
-					setPendingUserMessage(undefined);
-					setStreamingState(false);
-					return;
-				case "agent_settled":
-					setStreamingState(false);
-					setPendingUserMessage(undefined);
-					setStreamedText("");
-					setThinkingText("");
-					setTools({});
-					setPermissionRequests([]);
-					void onRefreshRef
-						.current()
-						.catch((refreshError: unknown) =>
-							setError(toErrorMessage(refreshError, "无法刷新 Pi 会话。")),
-						);
-					return;
-				default:
-					return;
-			}
-		}
-
-		function updateTool(
-			event: PiSessionEvent,
-			status: ToolStatus["status"],
-		): void {
-			if (!event.toolCallId || !event.toolName) return;
-			setTools((current) => ({
-				...current,
-				[event.toolCallId!]: {
-					isError:
-						status === "complete" ? (event.isError ?? undefined) : undefined,
-					name: event.toolName!,
-					status,
-				},
-			}));
-		}
-
-		return subscribeToPiSessionEvents(handleSessionEvent);
-	}, [onStreamingChange, openedSession.runtime.sessionPath]);
-
-	useEffect(() => {
-		function handleToolPermissionRequest(
-			request: PiToolPermissionRequest,
-		): void {
-			if (request.sessionPath !== openedSession.runtime.sessionPath) return;
-			setPermissionRequests((current) => [...current, request]);
-			if (!request.toolCallId) return;
-			setTools((current) => ({
-				...current,
-				[request.toolCallId!]: {
-					isError: undefined,
-					name: request.toolName,
-					status: "awaiting_permission",
-				},
-			}));
-		}
-
-		return subscribeToPiToolPermissionRequests(handleToolPermissionRequest);
-	}, [openedSession.runtime.sessionPath]);
-
-	async function handleSubmit(
-		event: FormEvent<HTMLFormElement>,
-	): Promise<void> {
-		event.preventDefault();
-		const text = draft.trim();
-		if (!text || isSending || !hasAvailableCredential || !hasAvailableModel) return;
-		setError(undefined);
-		setIsSending(true);
-		try {
-			if (isStreaming) {
-				await steerPiSession({
-					sessionPath: openedSession.runtime.sessionPath,
-					text,
-				});
-			} else {
-				setPendingUserMessage(text);
-				setStreamedText("");
-				setThinkingText("");
-				setTools({});
-				setPermissionRequests([]);
-				setIsStreaming(true);
-				onStreamingChange(true);
-				await promptPiSession({
-					sessionPath: openedSession.runtime.sessionPath,
-					text,
-				});
-			}
-			setDraft("");
-		} catch (requestError) {
-			setPendingUserMessage(undefined);
-			setIsStreaming(false);
-			onStreamingChange(false);
-			setError(toErrorMessage(requestError, "无法发送消息。"));
-		} finally {
-			setIsSending(false);
-		}
+	if (!openedSession) {
+		return (
+			<section className="grid h-full min-h-0 place-items-center bg-background p-8">
+				<p className={snapshot.error ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
+					{snapshot.error ?? "正在加载 Pi 会话…"}
+				</p>
+			</section>
+		);
 	}
-
-	async function handleFollowUp(): Promise<void> {
-		const text = draft.trim();
-		if (!text || isSending || !isStreaming) return;
-		setError(undefined);
-		setIsSending(true);
-		try {
-			await followUpPiSession({
-				sessionPath: openedSession.runtime.sessionPath,
-				text,
-			});
-			setDraft("");
-		} catch (requestError) {
-			setError(toErrorMessage(requestError, "无法排队后续消息。"));
-		} finally {
-			setIsSending(false);
-		}
-	}
-
-	async function handleAbort(): Promise<void> {
-		setError(undefined);
-		try {
-			await abortPiSession({ sessionPath: openedSession.runtime.sessionPath });
-			setIsStreaming(false);
-			onStreamingChange(false);
-		} catch (requestError) {
-			setError(toErrorMessage(requestError, "无法停止 Pi 会话。"));
-		}
-	}
-
-	async function handleToolPermission(
-		request: PiToolPermissionRequest,
-		allowed: boolean,
-	): Promise<void> {
-		setError(undefined);
-		try {
-			await respondToPiToolPermission({ allowed, id: request.id });
-			setPermissionRequests((current) =>
-				current.filter((candidate) => candidate.id !== request.id),
-			);
-			if (request.toolCallId && !allowed) updateDeniedTool(request);
-		} catch (requestError) {
-			setError(toErrorMessage(requestError, "无法提交工具授权决定。"));
-		}
-	}
-
-	function updateDeniedTool(request: PiToolPermissionRequest): void {
-		if (!request.toolCallId) return;
-		setTools((current) => ({
-			...current,
-			[request.toolCallId!]: {
-				isError: true,
-				name: request.toolName,
-				status: "complete",
-			},
-		}));
-	}
-
 
 	const sessionTitle =
 		openedSession.transcript.session.name ||
 		openedSession.transcript.session.firstMessage ||
 		"未命名会话";
-	const pendingPermission = permissionRequests[0];
+	const pendingPermission = snapshot.permissionRequests[0];
+
+
+	async function handleAbort(): Promise<void> {
+		try {
+			await session.abort();
+		} catch {
+			// ChatSession publishes the visible error into its snapshot.
+		}
+	}
+
+	async function handleToolPermission(allowed: boolean): Promise<void> {
+		if (!pendingPermission) return;
+		try {
+			await session.respondToPermission(pendingPermission.id, allowed);
+		} catch {
+			// ChatSession publishes the visible error into its snapshot.
+		}
+	}
 
 	return (
 		<section className="flex h-full min-h-0 flex-col bg-background">
 			<ChatHeader
-				entryCount={openedSession.transcript.entries.length}
+				entryCount={openedSession.transcript.messages.length}
 				isFileTreeOpen={isFileTreeOpen}
 				isStreaming={isStreaming}
 				onAbort={handleAbort}
 				onToggleFileTree={onToggleFileTree}
+				openedSession={openedSession}
 				title={sessionTitle}
 			/>
 			<ChatTranscript
-				entries={openedSession.transcript.entries}
 				isStreaming={isStreaming}
-				pendingUserMessage={pendingUserMessage}
+				items={renderItems}
+				pendingUserMessage={snapshot.pendingUserMessage ?? undefined}
 				showThinking={showThinking}
-				streamedText={streamedText}
-				thinkingText={thinkingText}
-				tools={sortedTools}
+				streamedText={snapshot.streamedText}
+				thinkingText={snapshot.thinkingText}
+				tools={snapshot.tools}
 				transcriptEndRef={transcriptEndRef}
 			/>
 			{pendingPermission ? (
 				<ToolPermissionPrompt
-					onDecide={(allowed) => handleToolPermission(pendingPermission, allowed)}
+					onDecide={handleToolPermission}
 					request={pendingPermission}
 				/>
 			) : null}
 			<ChatComposer
-				authentication={authentication}
-				draft={draft}
-				error={error}
-				hasAvailableCredential={hasAvailableCredential}
-				hasAvailableModel={hasAvailableModel}
-				isSending={isSending}
-				isStreaming={isStreaming}
-				onSessionUpdate={onSessionUpdate}
+				error={formatSessionError(snapshot.error)}
+				isSending={snapshot.isSending}
 				openedSession={openedSession}
-				onChange={setDraft}
-				onFollowUp={handleFollowUp}
-				onOpenAuthentication={onOpenAuthentication}
-				onSubmit={handleSubmit}
+				session={session}
 			/>
 		</section>
 	);
 }
 
-
-function formatSessionError(message: string | null): string {
-	if (!message) return "Pi 会话运行失败。";
-	if (
-		/OAuth (auth derivation|refresh) failed for github-copilot/i.test(message)
-	) {
+function formatSessionError(message: string | null): string | undefined {
+	if (!message) return undefined;
+	if (/OAuth (auth derivation|refresh) failed for github-copilot/i.test(message)) {
 		return "GitHub Copilot 登录已失效。请使用 Pi 的登录流程重新授权后重试。";
 	}
 	return message;
-}
-
-function toErrorMessage(error: unknown, fallback: string): string {
-	return error instanceof Error ? error.message : fallback;
 }

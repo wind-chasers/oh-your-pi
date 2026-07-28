@@ -1,6 +1,6 @@
 import type {
+	AuthType,
 	PiAuthenticationEvent,
-	PiAuthenticationMethod,
 	PiAuthenticationStatus,
 } from "@shared/pi-contract";
 
@@ -12,5 +12,5 @@ export type ActiveLogin = {
 
 export type ProviderLoginHandler = (
 	provider: PiAuthenticationStatus,
-	method: PiAuthenticationMethod,
+	method: AuthType,
 ) => Promise<void>;

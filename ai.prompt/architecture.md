@@ -2,136 +2,164 @@
 
 ## 定位
 
-基于 **Electrobun + Bun + React/Vite** 的 Pi Coding Agent 桌面客户端。渲染进程只负责界面与交互；Bun 主进程持有 Pi SDK、工作区、会话和凭据访问权；两端只通过受类型约束的 Electrobun RPC 通信。
+Oh Your Pi 是基于 **Electrobun + Bun + React/Vite** 的 Pi Coding Agent 桌面客户端，组合 Pi 的能力，不实现第二套 Agent。
+
+- Renderer 负责界面、交互和浏览器侧偏好。
+- Bun 主进程负责桌面能力、业务用例、Pi SDK、文件系统和凭据访问。
+- 两端只通过 Electrobun RPC 交换受 TypeScript 类型约束的数据。
+
+## 文档分工
+
+- 本文：系统边界、依赖方向和全局不变量。
+- [`arch-main.md`](./arch-main.md)：Bun 主进程、Pi runtime、业务层、RPC 和桌面生命周期。
+- [`arch-render.md`](./arch-render.md)：React Renderer、页面组合、状态和事件处理。
+
+局部实现文档按 owner 就近维护：
+
+| 范围 | 局部文档 | 负责内容 |
+|---|---|---|
+| 跨进程 DTO 与 RPC schema | [`src/shared/ai.prompt.md`](../src/shared/ai.prompt.md) | 线协议、身份和契约演进 |
+| Pi SDK 运行边界 | [`src/bun/pi/ai.prompt.md`](../src/bun/pi/ai.prompt.md) | runtime、workspace、live session 与 SDK 生命周期 |
+| Bun 应用用例层 | [`src/bun/app/ai.prompt.md`](../src/bun/app/ai.prompt.md) | 用例组合、DTO 映射和交互状态 |
+| Session Application | [`src/bun/app/session/ai.prompt.md`](../src/bun/app/session/ai.prompt.md) | event、工具授权和认证恢复 |
+| Renderer 应用控制器 | [`src/mainview/biz/app/ai.prompt.md`](../src/mainview/biz/app/ai.prompt.md) | workspace/session 页面级状态 |
+| Session 会话界面 | [`src/mainview/biz/workspace/sessions/session/ai.prompt.md`](../src/mainview/biz/workspace/sessions/session/ai.prompt.md) | 流式 UI、输入语义和 permission 交互 |
+| Atom 基础设施 | [`src/mainview/atom/ai.prompt.md`](../src/mainview/atom/ai.prompt.md) | Atom 完整 API 与使用方式 |
+
+全局文档只维护跨模块事实；实现细节进入上表对应 owner。阅读时先从本文确定系统边界，再按任务进入进程文档和局部文档。
+
+## 系统拓扑
 
 ```mermaid
 flowchart LR
-  subgraph View["Renderer · React / Vite"]
-    UI["AppShell / Workspace"] --> Client["pi-client"]
+  subgraph Renderer["Renderer · React / Vite"]
+    UI["AppShell · Workspace · SessionChat"] --> Store["ChatStore · ChatWorkspace · ChatSession"]
+    Store --> Client["lib/pi-client"]
   end
-  subgraph Main["Main process · Bun"]
-    RPC["Electrobun RPC"] --> Service["PiWorkspaceService"] --> Hosts["PiWorkspaceHost\nPiSessionHost × N"]
-  end
-  subgraph Runtime["Pi runtime"]
-    SDK["Pi Coding Agent SDK"] --> Agent["~/.pi/agent\nauth · models · sessions"]
-  end
-  Client -->|"typed request"| RPC
-  RPC -. "session · auth · permission events" .-> Client
-  Hosts --> SDK
 
-  classDef view fill:#EEF2FF,stroke:#6366F1,color:#1E1B4B,stroke-width:1.5px;
-  classDef bridge fill:#ECFEFF,stroke:#0891B2,color:#164E63,stroke-width:1.5px;
-  classDef core fill:#ECFDF5,stroke:#059669,color:#064E3B,stroke-width:1.5px;
-  classDef runtime fill:#FFF7ED,stroke:#EA580C,color:#7C2D12,stroke-width:1.5px;
-  class UI,Client view;
-  class RPC bridge;
-  class Service,Hosts core;
-  class SDK,Agent runtime;
+  subgraph Main["Main process · Bun"]
+    RPC["rpc/"] --> App["app/"]
+    App --> Pi["pi/"]
+    Desktop["desktop/"]
+  end
+
+  subgraph Storage["Local state"]
+    Agent["~/.pi/agent\nauth · models · sessions"]
+    AppState["~/.pi/oh-your-pi\nwindow.json"]
+    BrowserState["localStorage\npreferences · recent workspaces"]
+  end
+
+  Client -->|"typed requests"| RPC
+  RPC -. "session · auth · permission events" .-> Client
+  RPC --> Desktop
+  Pi --> Agent
+  Desktop --> AppState
+  UI --> BrowserState
 ```
 
-## 主进程：Pi 运行边界
+## 源码边界
 
-- `src/bun/index.ts`：创建主窗口、RPC 与 `PiWorkspaceService`；启动前调用 `registerBunOAuthFlows()`。Pi 的 OAuth loader 含 bundler 不透明动态导入，必须静态注册，否则打包后的 Bun 主进程无法可靠加载 GitHub Copilot OAuth。
-- `src/bun/workspace/service.ts`：唯一的 Pi 业务入口。按显式 `workspacePath` / `sessionPath` 路由请求，不保存“当前活动会话”；负责会话创建、打开、模型与思考级别、prompt、认证、权限、诊断与资源刷新。
-- `src/bun/pi/runtime.ts`：`PiWorkspaceHost` 缓存一个工作区的多个活动 `PiSessionHost`；每个 host 独占一个 `AgentSession` 及其 SDK services，可独立重建和释放。并行会话依靠多个 `AgentSession`，不是前端虚拟状态。
-- `src/bun/workspace/events.ts` 与 `permissions.ts`：将 SDK 流式事件和工具授权请求转发给 Renderer，避免 UI 直接接触 SDK。
-- `src/bun/workspace/auth.ts`：处理 OAuth / API key 登录、device code、交互式提示与取消；同一 provider 的认证及 prompt 操作串行化。
-- `src/bun/pi/diagnostics.ts`、`redaction.ts`：只记录认证状态、文件元信息和环境摘要，绝不输出 token、API key 或完整 `auth.json`。
+```text
+src/
+├── bun/          # Bun 主进程
+├── mainview/     # React Renderer
+└── shared/       # 跨进程 TypeScript DTO 与 RPC schema
+```
 
-### OAuth 可靠性
+依赖方向：
 
-GitHub Copilot OAuth 曾只在打包 GUI 中失败，根因是未注册 Bun 静态 OAuth flow，现已通过 `registerBunOAuthFlows()` 修复。发送前会解析当前模型认证；若运行中出现明确 OAuth 解析失败，服务记录脱敏诊断、回退到失败 assistant 消息的父节点、重新解析认证后仅恢复一次 `agent.continue()`。不对通用模型、限流或工具错误重试。
+```text
+mainview ──→ shared ←── rpc ──→ app ──→ pi ──→ Pi SDK
+                         └──→ desktop ──→ Electrobun / OS
+```
 
-## RPC 与共享契约
+约束：
 
-- `src/shared/pi-contract.ts`：Zod schema 是跨进程数据的唯一真相，覆盖工作区快照、会话、模型、事件、认证、权限、文件和诊断。
-- `src/shared/pi-rpc.ts`：声明请求/响应及主进程推送消息。
-- `src/bun/rpc/pi-rpc.ts`：主进程 handler 与事件桥接。
-- `src/mainview/lib/pi-client.ts`：Renderer 唯一 RPC 客户端。业务组件不得直接使用 Electrobun 或 Pi SDK。
+1. Renderer 不得运行时导入 `src/bun` 或 `@earendil-works/pi-*`；`import type` 可以复用 SDK 已有事实类型。
+2. `src/shared/**` 可以 type-only 导入 Pi SDK，并优先直接复用或用 `Pick` / `Omit` / `Extract` 派生 RPC 安全子集；不得复制同构类型。
+3. `src/bun/pi/**` 是主进程内唯一允许运行时导入 `@earendil-works/pi-*` 的区域；可以 type-only 依赖共享契约作为输出约束。
+4. `src/bun/app/**` 不依赖 Electrobun；桌面和传输能力由外层适配。
+5. `src/bun/rpc/**` 只转发请求与事件，不实现业务状态机。
+6. `src/shared/**` 只包含静态 TypeScript 契约，不执行运行时解析。
 
-新增 RPC 时必须先扩展 `pi-contract.ts` 和 `pi-rpc.ts`，在主进程解析输入，再由 `pi-client.ts` 暴露给界面。
+## 跨进程契约
 
-### 一次消息的路径
+- `src/shared/pi-contract.ts`：workspace、session、模型、认证、权限、文件、诊断和事件 DTO。
+- `src/shared/pi-rpc.ts`：Electrobun 请求、响应和主进程推送消息的静态 schema。
+- `src/bun/rpc/index.ts`：主进程 RPC 适配器。
+- `src/mainview/lib/pi-client.ts`：Renderer 唯一 Electrobun RPC 客户端。
+
+RPC 类型由 TypeScript 和 Electrobun schema 约束，不叠加 Zod 或重复的 `.parse()` 包装。
+
+## 一次消息的端到端路径
 
 ```mermaid
 flowchart TB
-  Send([发送消息]) --> Command["promptSession(sessionPath, text)"]
-  Command --> Auth{"认证可解析？"}
-  Auth -->|否| Reject["返回可见错误\n不写入失败 assistant 消息"]
-  Auth -->|是| Prompt["AgentSession.prompt"]
-  Prompt --> Stream["流式 sessionEvent"]
-  Stream --> Render["ChatTranscript 增量渲染"]
-  Prompt --> Permission{"需要工具授权？"}
-  Permission -->|是| Ask["toolPermissionRequest"] --> Reply["respondToolPermission"] --> Prompt
-  Permission -->|否| Done([agent_end])
-  Stream --> Done
-
-  classDef entry fill:#EEF2FF,stroke:#6366F1,color:#1E1B4B,stroke-width:1.5px;
-  classDef action fill:#ECFDF5,stroke:#059669,color:#064E3B,stroke-width:1.5px;
-  classDef decision fill:#FFF7ED,stroke:#EA580C,color:#7C2D12,stroke-width:1.5px;
-  classDef failure fill:#FEF2F2,stroke:#DC2626,color:#7F1D1D,stroke-width:1.5px;
-  class Send,Render,Done entry;
-  class Command,Prompt,Stream,Ask,Reply action;
-  class Auth,Permission decision;
-  class Reject failure;
+  Send(["用户发送消息"]) --> Client["pi-client.promptPiSession"]
+  Client --> RPC["Electrobun request"]
+  RPC --> App["SessionApplication.prompt"]
+  App --> Auth{"当前模型认证可解析？"}
+  Auth -->|"否"| Reject["request 返回可见错误\n不启动 Agent"]
+  Auth -->|"是"| Prompt["PiSession.prompt"]
+  Prompt --> Accepted["SDK 接受 prompt\nrequest 返回 runtime state"]
+  Prompt --> Stream["sessionEvent 流"]
+  Stream --> Store["ChatStore 路由并更新 ChatSession"]
+  Store --> Render["SessionChat 订阅 snapshot"]
+  Stream --> Settled["agent_settled"]
+  Settled --> Refresh["ChatSession 重新读取 transcript"]
+  Prompt --> Permission{"工具需要授权？"}
+  Permission -->|"是"| Ask["toolPermissionRequest"]
+  Ask --> Decide["用户允许或拒绝"]
+  Decide --> Reply["respondToolPermission"]
+  Reply --> Prompt
 ```
 
-## 渲染进程：按业务域组织
+消息 request 只确认主进程与 SDK 已接受命令，不等待整轮生成。文本、thinking、工具状态和错误由带 `sessionPath` 的 event 流传递；Renderer 的唯一全局 ChatStore 把事件路由到所属后台 session，当前导航选择不参与路由。`agent_settled` 后由对应 `ChatSession` 刷新 transcript，并按 generation 清理临时增量。
 
-```text
-src/mainview/
-├── App.tsx                         # 窗口级壳与 TooltipProvider
-├── biz/
-│   ├── app/                        # 全局工作区/会话控制、偏好、侧栏
-│   │   ├── AppShell.tsx
-│   │   ├── use-workspace-session-controller.ts
-│   │   ├── preferences/
-│   │   └── sidebar/
-│   ├── authentication/             # provider 登录对话框及流程 UI
-│   └── workspace/                  # 已选工作区的布局与局部 pane 协调
-│       ├── files/                  # 文件读取、树与预览
-│       └── sessions/
-│           ├── SessionList.tsx
-│           └── session/
-│               └── chat/           # 流式聊天、消息、输入、权限、模型/思考选择
-├── components/                     # 跨业务的 UI 基元与 Markdown 渲染
-├── lib/                            # RPC 客户端、主题等基础设施
-└── states/                         # 跨页面 atom 状态
-```
+工具授权是独立的主进程发起交互：危险等级用于 UI 提示，最终决定仍由用户返回。认证解析失败只在主进程受控恢复一次，不由 Renderer 重发 prompt。
 
-- `AppShell` 组合侧栏、工作区与认证弹窗；`use-workspace-session-controller` 持有工作区选择、会话打开/新建、网络状态及偏好持久化。
-- `workspace/index.tsx` 仅协调会话列表、会话 pane、文件树和文件预览；文件域与会话域互不依赖。
-- `sessions/session/index.tsx` 订阅流式事件、处理发送/中止/跟进/steer 与工具授权；`chat/` 下的 transcript、消息类型、composer、header 和模型/思考选择器分担展示与交互。
-- 模型与思考级别由 `ModelThinkingSelector.tsx` 独立呈现，位于发送按钮左侧；流式输出或切换请求期间禁用。
+## 身份与状态
 
-约束：`app` 可依赖 `workspace`，反向依赖禁止；只有 controller、hook 或会话事件层调用 `pi-client`；不新增 `biz/components`、`biz/shared`、barrel 文件。真实跨域复用再提升至 `mainview/components` 或 `mainview/lib`。
+- workspace 使用规范化绝对路径标识。
+- live session 使用持久化 `sessionPath` 标识。
+- `PiRuntime` 在主进程生命周期内只创建一个 `ModelRuntime`。
+- 多个 live session 各自持有独立 `AgentSession`，由 session registry 直接索引。
+- Renderer 不持有凭据，只保存服务端返回的安全 DTO 和界面临时状态。
 
-## 数据与持久化
+## 持久化
 
-- Pi 原生数据继续由 SDK 管理于 `~/.pi/agent`：认证、模型配置和 JSONL session；GUI 与 Pi TUI 共享它们。
-- 应用自有数据放在 Pi 根目录下：`~/.pi/oh-your-pi/window.json`。其中 `home` 保存 `{ x, y, width, height }`；首次创建窗口即写入，移动/缩放经 150 ms 防抖原子写回，非法或缺失状态回退默认窗口尺寸。
-- Renderer 偏好（深色模式、显示思考过程、最近工作区）存于 `localStorage`，对应 `biz/app/preferences/` 的纯函数。
-- 凭据不进入 Renderer；认证 URL 可由主进程打开，device code 与进度仅作为受控事件展示。
+- Pi SDK 数据：`~/.pi/agent`，包括认证、模型配置和 JSONL session。
+- 应用窗口状态：`~/.pi/oh-your-pi/window.json`。
+- Renderer 偏好：当前 WebView origin 的 `localStorage`。
+
+凭据、token、API key 和完整 `auth.json` 不进入 Renderer；跨进程资源诊断与工具授权摘要在主进程脱敏。session transcript 本身保留 Pi 已持久化的 tool-call arguments，不额外生成一份 Renderer 专用工具数据。
+
+### 具体持久化行为
+
+- `~/.pi/agent` 完全由 Pi SDK 管理，GUI 与 Pi TUI 共享认证、模型配置、资源和 JSONL session；应用不复制或迁移这些数据。
+- `~/.pi/oh-your-pi/window.json` 只保存主窗口 `{ x, y, w, h }`。窗口创建时立即落盘，移动和缩放以 150 ms 合并写入，关闭时同步 flush；文件通过同目录临时文件加 rename 原子替换，目录和文件权限分别为 `0700` 与 `0600`。
+- 窗口状态缺失、损坏或尺寸非法时回退到默认 frame，不让持久化错误阻止应用启动。
+- Renderer 的主题、是否显示 thinking 和最近工作区保存到当前 WebView origin 的 `localStorage`；workspace snapshot、打开会话和认证状态不持久化在浏览器。
 
 ```mermaid
 flowchart LR
   subgraph PiHome["~/.pi"]
     Agent["agent/"] --> Credentials["auth.json · models.json"]
     Agent --> Sessions["sessions/*.jsonl"]
-    App["oh-your-pi/"] --> Window["window.json\nhome frame"]
+    Agent --> Resources["extensions · skills · prompts · context"]
+    AppData["oh-your-pi/"] --> Window["window.json\nhome frame"]
   end
-  Browser["Renderer origin"] --> Preferences["localStorage\n主题 · 思考显示 · 最近工作区"]
-
-  classDef pi fill:#FFF7ED,stroke:#EA580C,color:#7C2D12,stroke-width:1.5px;
-  classDef app fill:#ECFDF5,stroke:#059669,color:#064E3B,stroke-width:1.5px;
-  classDef browser fill:#EEF2FF,stroke:#6366F1,color:#1E1B4B,stroke-width:1.5px;
-  class Agent,Credentials,Sessions pi;
-  class App,Window app;
-  class Browser,Preferences browser;
+  Renderer["Renderer origin"] --> Preferences["localStorage\n主题 · thinking · 最近工作区"]
+  PiSDK["Pi SDK"] --> Agent
+  Desktop["Bun desktop"] --> AppData
 ```
 
-## 工程约束与验证
+## 工程约束
 
-- TypeScript 严格模式；路径别名：`@main/*`、`@shared/*`、`@view/*`。
-- 测试与纯函数/服务共置；`bun test` 覆盖 RPC、workspace、Pi 诊断与 UI 单元行为。
-- 交付验证：`bun run verify` 依次执行 typecheck、测试和 Vite/Electrobun 构建。涉及真实 provider 的改动还必须从桌面 Renderer 经 RPC 实测，构建通过不能替代该路径。
+- TypeScript strict mode。
+- 路径别名：`@main/*`、`@shared/*`、`@view/*`。
+- 目录入口使用无 `/index` 后缀的 import；Electrobun alias resolver 负责解析目录中的入口文件。
+- 测试与所属模块共置。
+- 完整验证命令：`bun run verify`，依次执行 typecheck、测试和 Vite/Electrobun 构建。
+
+验证必须匹配改动层级：纯 DTO 变化至少覆盖 typecheck 和两端适配；会话、认证、权限与文件行为运行对应共置测试；最终使用 `bun run verify` 执行 typecheck、测试、Vite 构建和 Electrobun 构建。真实 provider、OAuth、系统对话框、窗口 reopen/quit 与桌面 WebView 行为必须从打包桌面路径验证，构建成功不能替代该路径。

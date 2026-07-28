@@ -16,24 +16,21 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@view/components/ui/tooltip";
+import { AppDisabledAtom } from "@view/states/activity.atom";
+import {
+	AuthenticationAtom,
+	AuthenticationDialogOpenAtom,
+} from "@view/states/authentication.atom";
+import { NetworkOnlineAtom } from "@view/states/network.atom";
+import { ShowThinkingAtom } from "@view/states/preferences.atom";
 
-type AppSettingsDialogProps = {
-	authentication?: PiAuthenticationStatus[];
-	disabled: boolean;
-	isNetworkOnline: boolean;
-	onOpenAuthentication: () => void;
-	onShowThinkingChange: (value: boolean) => void;
-	showThinking: boolean;
-};
 
-export function AppSettingsDialog({
-	authentication,
-	disabled,
-	isNetworkOnline,
-	onOpenAuthentication,
-	onShowThinkingChange,
-	showThinking,
-}: AppSettingsDialogProps): ReactElement {
+export function AppSettingsDialog(): ReactElement {
+	const disabled = AppDisabledAtom.use();
+	const authentication = AuthenticationAtom.useData();
+	const isNetworkOnline = NetworkOnlineAtom.useData();
+	const [showThinking, thinking] = ShowThinkingAtom.use();
+	const setAuthenticationOpen = AuthenticationDialogOpenAtom.useChange();
 	return (
 		<Dialog>
 			<Tooltip>
@@ -66,7 +63,7 @@ export function AppSettingsDialog({
 					<Switch
 						aria-label="显示模型思考过程"
 						checked={showThinking}
-						onCheckedChange={onShowThinkingChange}
+						onCheckedChange={thinking.change}
 					/>
 				</div>
 				<p className="text-xs text-muted-foreground">
@@ -80,7 +77,7 @@ export function AppSettingsDialog({
 								{providerStatusMessage(authentication)}
 							</p>
 						</div>
-						<Button disabled={disabled} onClick={onOpenAuthentication} size="xs" type="button" variant="outline">
+						<Button disabled={disabled} onClick={() => setAuthenticationOpen(true)} size="xs" type="button" variant="outline">
 							管理
 						</Button>
 					</div>

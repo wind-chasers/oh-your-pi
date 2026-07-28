@@ -1,25 +1,23 @@
 import { Plus } from "lucide-react";
 import { type ReactElement, useMemo, useState } from "react";
-import type { PiWorkspaceSnapshot } from "@shared/pi-contract";
+import type { PiSessionSummary } from "@shared/pi-contract";
 import { Button } from "@view/components/ui/button";
+import { AppDisabledAtom } from "@view/states/activity.atom";
+import { SelectedSessionAtom, WorkspaceAtom } from "@view/states/current.atom";
+import {
+	ContinueRecentSessionMutation,
+	CreateSessionMutation,
+	SelectSessionMutation,
+} from "@view/states/session";
 
-type SessionListProps = {
-	disabled: boolean;
-	onContinueRecentSession: () => Promise<void>;
-	onCreateSession: () => Promise<void>;
-	onSelectSession: (sessionPath: string) => Promise<void>;
-	selectedSessionPath?: string;
-	sessions: PiWorkspaceSnapshot["sessions"];
-};
 
-export function SessionList({
-	disabled,
-	onContinueRecentSession,
-	onCreateSession,
-	onSelectSession,
-	selectedSessionPath,
-	sessions,
-}: SessionListProps): ReactElement {
+export function SessionList(): ReactElement {
+	const disabled = AppDisabledAtom.use();
+	const sessions = WorkspaceAtom.useData()?.sessions ?? [];
+	const selectedSession = SelectedSessionAtom.useData();
+	const continueRecentSession = ContinueRecentSessionMutation.use();
+	const createSession = CreateSessionMutation.use();
+	const selectSession = SelectSessionMutation.use();
 	const [query, setQuery] = useState("");
 	const visibleSessions = useMemo(() => {
 		const normalizedQuery = query.trim().toLocaleLowerCase();
@@ -48,7 +46,7 @@ export function SessionList({
 				<Button
 					aria-label="新建会话"
 					disabled={disabled}
-					onClick={() => void onCreateSession()}
+					onClick={() => void createSession()}
 					size="icon-sm"
 					type="button"
 					variant="ghost"
@@ -76,9 +74,9 @@ export function SessionList({
 				{visibleSessions.map((session) => (
 					<SessionListItem
 						disabled={disabled}
-						isSelected={selectedSessionPath === session.path}
+						isSelected={selectedSession?.sessionId === session.id}
 						key={session.id}
-						onSelect={onSelectSession}
+						onSelect={selectSession}
 						session={session}
 					/>
 				))}
@@ -86,7 +84,7 @@ export function SessionList({
 					<EmptySessionList
 						disabled={disabled}
 						hasSessions={sessions.length > 0}
-						onContinue={onContinueRecentSession}
+						onContinue={continueRecentSession}
 					/>
 				) : null}
 			</nav>
@@ -102,8 +100,8 @@ function SessionListItem({
 }: {
 	disabled: boolean;
 	isSelected: boolean;
-	onSelect: (sessionPath: string) => Promise<void>;
-	session: PiWorkspaceSnapshot["sessions"][number];
+	onSelect: (session: PiSessionSummary) => Promise<void>;
+	session: PiSessionSummary;
 }): ReactElement {
 	const title = session.name || session.firstMessage || "未命名会话";
 	return (
@@ -111,7 +109,7 @@ function SessionListItem({
 			aria-current={isSelected ? "page" : undefined}
 			className="mb-1 w-full rounded-md px-3 py-2 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 aria-[current=page]:bg-primary/10 aria-[current=page]:text-primary"
 			disabled={disabled}
-			onClick={() => void onSelect(session.path)}
+			onClick={() => void onSelect(session)}
 			title={title}
 			type="button"
 		>

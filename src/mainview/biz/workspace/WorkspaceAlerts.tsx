@@ -1,12 +1,12 @@
 import { CircleAlert, WifiOff } from "lucide-react";
 import { type ReactElement } from "react";
+import { WorkspaceErrorAtom } from "@view/states/activity.atom";
+import { NetworkOnlineAtom } from "@view/states/network.atom";
 
-type WorkspaceAlertsProps = { error?: string; isNetworkOnline: boolean };
 
-export function WorkspaceAlerts({
-	error,
-	isNetworkOnline,
-}: WorkspaceAlertsProps): ReactElement {
+export function WorkspaceAlerts(): ReactElement {
+	const error = WorkspaceErrorAtom.useData();
+	const isNetworkOnline = NetworkOnlineAtom.useData();
 	return (
 		<>
 			{!isNetworkOnline ? (

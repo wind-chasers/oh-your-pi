@@ -6,6 +6,7 @@ import type {
 	PiAuthenticationStatus,
 	PiAuthenticationPromptResponse,
 	PiOpenedSession,
+	PiImageAttachment,
 	PiSessionAbortRequest,
 	PiSessionModelRequest,
 	PiSessionCommand,
@@ -36,6 +37,7 @@ export interface PiRpcSchema extends ElectrobunRPCSchema {
 			inspectWorkspace: { params: PiWorkspaceRequest; response: PiWorkspaceSnapshot };
 			refreshWorkspaceResources: { params: PiWorkspaceRequest; response: PiWorkspaceRefreshResult };
 			chooseWorkspace: { params: Record<string, never>; response: PiWorkspacePickerResult };
+			chooseImageAttachments: { params: Record<string, never>; response: PiImageAttachment[] };
 				listWorkspaceFiles: { params: PiWorkspaceFileRequest; response: PiWorkspaceFile[] };
 				readWorkspaceFile: { params: PiWorkspaceFileRequest; response: PiWorkspaceFileContent };
 			readSessionTranscript: { params: PiSessionTranscriptRequest; response: PiSessionTranscript };

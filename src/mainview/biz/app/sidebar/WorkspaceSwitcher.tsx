@@ -7,6 +7,13 @@ import {
 	TooltipTrigger,
 } from "@view/components/ui/tooltip";
 import { cn } from "@view/lib/utils";
+import { AppDisabledAtom } from "@view/states/activity.atom";
+import { WorkspaceAtom } from "@view/states/current.atom";
+import { RecentWorkspacesAtom } from "@view/states/preferences.atom";
+import {
+	ChooseWorkspaceMutation,
+	LoadWorkspaceMutation,
+} from "@view/states/workspace";
 
 const WORKSPACE_TONES = [
 	"bg-rose-500",
@@ -16,21 +23,13 @@ const WORKSPACE_TONES = [
 	"bg-violet-500",
 ];
 
-type WorkspaceSwitcherProps = {
-	disabled: boolean;
-	onChooseWorkspace: () => Promise<void>;
-	onSelectWorkspace: (workspacePath: string) => Promise<void>;
-	recentWorkspaces: string[];
-	selectedWorkspacePath?: string;
-};
 
-export function WorkspaceSwitcher({
-	disabled,
-	onChooseWorkspace,
-	onSelectWorkspace,
-	recentWorkspaces,
-	selectedWorkspacePath,
-}: WorkspaceSwitcherProps): ReactElement {
+export function WorkspaceSwitcher(): ReactElement {
+	const disabled = AppDisabledAtom.use();
+	const selectedWorkspacePath = WorkspaceAtom.useData()?.workspacePath;
+	const recentWorkspaces = RecentWorkspacesAtom.useData();
+	const chooseWorkspace = ChooseWorkspaceMutation.use();
+	const selectWorkspace = LoadWorkspaceMutation.use();
 	return (
 		<div className="flex w-full flex-col items-center gap-2.5">
 			{recentWorkspaces.map((path, index) => {
@@ -46,7 +45,7 @@ export function WorkspaceSwitcher({
 									WORKSPACE_TONES[index % WORKSPACE_TONES.length],
 								)}
 								disabled={disabled}
-								onClick={() => void onSelectWorkspace(path)}
+								onClick={() => void selectWorkspace(path)}
 								type="button"
 							>
 								{workspaceName(path).slice(0, 1).toLocaleUpperCase()}
@@ -62,7 +61,7 @@ export function WorkspaceSwitcher({
 						aria-label="添加工作区"
 						className="size-7 rounded-md [&_svg]:size-3.5"
 						disabled={disabled}
-						onClick={() => void onChooseWorkspace()}
+						onClick={() => void chooseWorkspace()}
 						size="icon"
 						type="button"
 						variant="ghost"
