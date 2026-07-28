@@ -1,7 +1,7 @@
 import type { ImageContent } from "@earendil-works/pi-ai";
 import { type ReactElement, useState } from "react";
 import { ImagePreviewDialog } from "../ImagePreviewDialog";
-import { MarkdownContent } from "@view/components/markdown-content";
+import { MarkdownContent } from "@view/components/markdown/markdown-content";
 import { Button } from "@view/components/ui/button";
 import { cn } from "@view/lib/utils";
 

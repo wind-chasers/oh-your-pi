@@ -2,6 +2,8 @@ import { FileCode2, X } from "lucide-react";
 import { type ReactElement } from "react";
 import type { PiWorkspaceFileContent } from "@shared/pi-contract";
 import { Button } from "@view/components/ui/button";
+import { SyntaxHighlightedCode } from "@view/components/code-view/syntax-highlighted-code";
+import { resolveFileLanguage } from "@view/components/code-view/syntax-languages";
 
 type FilePreviewProps = {
 	file: PiWorkspaceFileContent;
@@ -9,6 +11,7 @@ type FilePreviewProps = {
 };
 
 export function FilePreview({ file, onClose }: FilePreviewProps): ReactElement {
+	const language = resolveFileLanguage(file.path);
 	return (
 		<section
 			aria-label="文件内容"
@@ -29,7 +32,7 @@ export function FilePreview({ file, onClose }: FilePreviewProps): ReactElement {
 				</p>
 			) : null}
 			<pre className="min-h-0 flex-1 overflow-auto p-4 font-mono text-xs leading-5 text-foreground">
-				<code>{file.content}</code>
+				<SyntaxHighlightedCode enabled={!file.isBinary} language={language} showLineNumbers>{file.content}</SyntaxHighlightedCode>
 			</pre>
 		</section>
 	);

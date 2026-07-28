@@ -29,6 +29,33 @@
 		font-size: 0.9em;
 	}
 
+	.markdown-code-block {
+		min-width: 0;
+		max-width: 100%;
+		margin: 16px 0;
+		overflow: hidden;
+		border: 1px solid color-mix(in oklab, currentColor 8%, transparent);
+		border-radius: var(--radius);
+		background-color: color-mix(in oklab, currentColor 4%, transparent);
+
+		pre {
+			max-width: 100%;
+			margin: 0;
+			overflow: auto;
+			border: 0;
+			border-radius: 0;
+			background-color: transparent;
+			padding: 14px 16px;
+			line-height: 1.55;
+		}
+
+		code {
+			border-radius: 0;
+			background-color: transparent;
+			padding: 0;
+		}
+	}
+
 	h1,
 	h2,
 	h3 {
@@ -80,21 +107,6 @@
 
 		&:last-child {
 			margin-bottom: 0;
-		}
-	}
-
-	pre {
-		margin: 16px 0;
-		overflow-x: auto;
-		border: 1px solid color-mix(in oklab, currentColor 16%, transparent);
-		border-radius: var(--radius);
-		background-color: color-mix(in oklab, currentColor 8%, transparent);
-		padding: 14px 16px;
-		line-height: 1.55;
-
-		code {
-			background-color: transparent;
-			padding: 0;
 		}
 	}
 

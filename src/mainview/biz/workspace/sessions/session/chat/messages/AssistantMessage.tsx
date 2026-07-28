@@ -1,6 +1,6 @@
 import { BrainCircuit, ChevronDown, Sparkles } from "lucide-react";
 import { type ReactElement } from "react";
-import { MarkdownContent } from "@view/components/markdown-content";
+import { MarkdownContent } from "@view/components/markdown/markdown-content";
 import { cn } from "@view/lib/utils";
 
 type AssistantMessageProps = {
@@ -26,7 +26,7 @@ export function AssistantMessage({ text, thinking, isStreaming = false }: Assist
 						// Todo 给头部留点空间放置一些操作按钮
 						<div className="h-0 mb-2"/>
 					)}
-					<MarkdownContent>{text}</MarkdownContent>
+					<MarkdownContent codeHilight={!isStreaming}>{text}</MarkdownContent>
 				</div>
 			) : null}
 			{isStreaming && !text && !thinking ? <StreamingPlaceholder /> : null}
@@ -44,7 +44,7 @@ function ThinkingMessage({ isStreaming, text }: { isStreaming: boolean; text: st
 				<ChevronDown aria-hidden className="size-3.5 shrink-0 transition-transform duration-200 motion-reduce:transition-none group-open:rotate-180" />
 			</summary>
 			<div className="border-t border-dashed border-border/70 p-3 text-sm text-muted-foreground">
-				<MarkdownContent>{text}</MarkdownContent>
+				<MarkdownContent codeHilight={!isStreaming}>{text}</MarkdownContent>
 			</div>
 		</details>
 	);

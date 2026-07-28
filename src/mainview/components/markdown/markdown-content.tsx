@@ -1,34 +1,44 @@
-import { type ComponentPropsWithoutRef, type ReactElement } from "react";
+import { type ComponentPropsWithoutRef, memo, type ReactElement } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
-import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 import { cn } from "@view/lib/utils";
+import { MarkdownCodeBlock } from "./markdown-code-block";
 import "./markdown-content.scss";
 
 type MarkdownContentProps = {
 	children: string;
 	className?: string;
+	codeHilight?: boolean;
 };
 
 type MarkdownLinkProps = ComponentPropsWithoutRef<"a"> & { node?: unknown };
 type MarkdownImageProps = ComponentPropsWithoutRef<"img"> & { node?: unknown };
 type MarkdownTableProps = ComponentPropsWithoutRef<"table"> & { node?: unknown };
+const markdownComponentsWithHighlight = createMarkdownComponents(true);
+const markdownComponentsWithoutHighlight = createMarkdownComponents(false);
 
-const markdownComponents = {
-	a: MarkdownLink,
-	img: MarkdownImage,
-	table: MarkdownTable,
-} satisfies Components;
-
-
-export function MarkdownContent({ children, className }: MarkdownContentProps): ReactElement {
+export const MarkdownContent = memo(function MarkdownContent({
+	children,
+	className,
+	codeHilight = true,
+}: MarkdownContentProps): ReactElement {
+	const components = codeHilight ? markdownComponentsWithHighlight : markdownComponentsWithoutHighlight;
 	return (
 		<div className={cn("markdown-content", className)}>
-			<ReactMarkdown components={markdownComponents} rehypePlugins={[rehypeHighlight]} remarkPlugins={[remarkGfm]}>
+			<ReactMarkdown components={components} remarkPlugins={[remarkGfm]}>
 				{children}
 			</ReactMarkdown>
 		</div>
 	);
+});
+
+function createMarkdownComponents(codeHilight: boolean): Components {
+	return {
+		a: MarkdownLink,
+		img: MarkdownImage,
+		pre: (props) => <MarkdownCodeBlock {...props} codeHilight={codeHilight} />,
+		table: MarkdownTable,
+	};
 }
 
 function MarkdownLink({ children, node: _node, ...props }: MarkdownLinkProps): ReactElement {
