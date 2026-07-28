@@ -89,9 +89,11 @@ function toPiSessionRuntimeState(
 
 function toPiModel(model: Model<any>): PiModel {
 	return {
+		contextWindow: model.contextWindow,
 		id: model.id,
 		name: model.name,
 		provider: model.provider,
+		input: model.input,
 		reasoning: model.reasoning,
 	};
 }

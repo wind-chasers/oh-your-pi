@@ -194,7 +194,10 @@ export type PiSessionTranscript = {
 	messages: PiSessionMessage[];
 };
 
-export type PiModel = Pick<Model<any>, "provider" | "id" | "name" | "reasoning">;
+export type PiModel = Pick<
+	Model<any>,
+	"provider" | "id" | "name" | "reasoning" | "input" | "contextWindow"
+>;
 
 export type PiSessionRuntimeState = {
 	sessionId: string;

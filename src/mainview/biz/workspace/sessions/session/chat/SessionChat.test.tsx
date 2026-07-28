@@ -8,6 +8,7 @@ import type {
 } from "@shared/pi-contract";
 import type { ReactElement } from "react";
 import { WithStore } from "@view/atom";
+import { TooltipProvider } from "@view/components/ui/tooltip";
 
 mock.module("electrobun/view", () => ({
 	Electroview: {
@@ -45,22 +46,28 @@ const openedSession: PiOpenedSession = {
 		isStreaming: false,
 		sessionName: "测试会话",
 		model: {
+			contextWindow: 128_000,
 			provider: "test",
 			id: "model-id",
 			name: "Test model",
+			input: ["text", "image"],
 			reasoning: false,
 		},
 		models: [
 			{
+				contextWindow: 128_000,
 				provider: "test",
 				id: "model-id",
 				name: "Test model",
+				input: ["text", "image"],
 				reasoning: false,
 			},
 			{
+				contextWindow: 64_000,
 				provider: "unavailable",
 				id: "unavailable-model-id",
 				name: "Unavailable model",
+				input: ["text"],
 				reasoning: true,
 			},
 		],
@@ -133,9 +140,11 @@ function renderSessionChat(
 	}
 
 	return renderToStaticMarkup(
-		<WithStore>
-			<Fixture />
-		</WithStore>,
+		<TooltipProvider>
+			<WithStore>
+				<Fixture />
+			</WithStore>
+		</TooltipProvider>
 	);
 }
 

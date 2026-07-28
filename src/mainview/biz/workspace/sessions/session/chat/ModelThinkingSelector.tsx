@@ -1,5 +1,5 @@
 import { type ReactElement } from "react";
-import type { PiOpenedSession, ThinkingLevel } from "@shared/pi-contract";
+import type { PiModel, PiOpenedSession, ThinkingLevel } from "@shared/pi-contract";
 import type { ChatSession } from "@view/chat-store";
 import { AuthenticationAtom } from "@view/states/authentication.atom";
 import {
@@ -10,6 +10,11 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@view/components/ui/select";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@view/components/ui/tooltip";
 
 type ModelThinkingSelectorProps = {
 	isUpdating: boolean;
@@ -32,14 +37,15 @@ export function ModelThinkingSelector({
 		),
 	);
 	const isLocked = isStreaming || isUpdating;
-	const selectedModelValue =
-		model &&
-		availableModels.some(
-			(candidate) =>
-				candidate.provider === model.provider && candidate.id === model.id,
-		)
-			? modelValue(model.provider, model.id)
-			: undefined;
+	const selectedModel = model
+		? availableModels.find(
+				(candidate) =>
+					candidate.provider === model.provider && candidate.id === model.id,
+			)
+		: undefined;
+	const selectedModelValue = selectedModel
+		? modelValue(selectedModel.provider, selectedModel.id)
+		: undefined;
 
 	function handleModelChange(value: string): void {
 		const [provider, modelId] = value.split("\u0000");
@@ -63,9 +69,20 @@ export function ModelThinkingSelector({
 					onValueChange={handleModelChange}
 					value={selectedModelValue}
 				>
-					<SelectTrigger aria-label="模型" className="max-w-48" size="sm">
-						<SelectValue placeholder="选择模型" />
-					</SelectTrigger>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<SelectTrigger
+								aria-label="模型"
+								indicator="none"
+								size="sm"
+							>
+								<SelectValue placeholder="选择模型">
+									{selectedModel?.name}
+								</SelectValue>
+							</SelectTrigger>
+						</TooltipTrigger>
+						{selectedModel ? <ModelTooltip model={selectedModel} /> : null}
+					</Tooltip>
 					<SelectContent className="min-w-max" position="popper">
 						<SelectGroup>
 							{availableModels.map((candidate) => (
@@ -86,7 +103,7 @@ export function ModelThinkingSelector({
 					onValueChange={handleThinkingChange}
 					value={thinkingLevel}
 				>
-					<SelectTrigger aria-label="思考级别" size="sm">
+					<SelectTrigger aria-label="思考级别" indicator="none" size="sm">
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent position="popper">
@@ -102,6 +119,30 @@ export function ModelThinkingSelector({
 			) : null}
 		</div>
 	);
+}
+
+function ModelTooltip({ model }: { model: PiModel }): ReactElement {
+	return (
+		<TooltipContent showArrow={false} side="top">
+			<div className="flex min-w-52 flex-col gap-1.5">
+				<p className="font-medium">{model.name}</p>
+				<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+					<dt className="opacity-70">提供商</dt>
+					<dd>{model.provider}</dd>
+					<dt className="opacity-70">上下文窗口</dt>
+					<dd>{model.contextWindow.toLocaleString("zh-CN")} tokens</dd>
+					<dt className="opacity-70">图像</dt>
+					<dd>{supportLabel(model.input.includes("image"))}</dd>
+					<dt className="opacity-70">推理</dt>
+					<dd>{supportLabel(model.reasoning)}</dd>
+				</dl>
+			</div>
+		</TooltipContent>
+	);
+}
+
+function supportLabel(isSupported: boolean): string {
+	return isSupported ? "支持" : "不支持";
 }
 
 function modelValue(provider: string, modelId: string): string {
