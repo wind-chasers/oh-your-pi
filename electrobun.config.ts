@@ -14,6 +14,9 @@ const resolvableExtensions = [".ts", ".tsx", ".js", ".jsx", ".json"];
 
 const appVersion = process.env.OH_YOUR_PI_VERSION ?? packageJson.version;
 
+// Bun.Image is required by the main-process attachment pipeline and is unavailable in Electrobun's bundled Bun 1.3.13.
+const desktopBunVersion = "1.3.14";
+
 function resolveProjectAlias(importPath: string): string | undefined {
 	const [alias, ...segments] = importPath.split("/");
 	const directory = aliasDirectories[alias as keyof typeof aliasDirectories];
@@ -52,6 +55,7 @@ export default {
 		description: "本机 Pi Coding Agent 图形客户端",
 	},
 	build: {
+		bunVersion: desktopBunVersion,
 		bun: {
 			plugins: [pathAliasPlugin],
 		},

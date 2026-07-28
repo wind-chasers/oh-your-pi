@@ -25,6 +25,8 @@ export function createPiRpc(options: { app: Application; desktop: DesktopSystem 
 				chooseWorkspace: async () => ({
 					workspacePath: await desktop.chooseWorkspaceDirectory(),
 				}),
+				chooseImageAttachments: async () =>
+					app.session.inspectImageAttachments(await desktop.chooseImageFiles()),
 				listWorkspaceFiles: (input) => app.workspace.listFiles(input),
 				readWorkspaceFile: (input) => app.workspace.readFile(input),
 				readSessionTranscript: (input) => app.session.readTranscript(input),

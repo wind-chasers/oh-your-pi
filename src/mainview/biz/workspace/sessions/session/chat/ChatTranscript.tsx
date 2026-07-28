@@ -79,7 +79,7 @@ function ConversationRenderItem({ isLive, item }: {
 }): ReactElement {
 	switch (item.type) {
 		case "user":
-			return <UserMessage text={item.text} />;
+			return <UserMessage images={item.images} text={item.text} />;
 		case "assistant":
 			return <AssistantMessage text={item.text} thinking={item.thinking} />;
 		case "system":

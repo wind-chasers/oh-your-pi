@@ -45,16 +45,18 @@ flowchart TD
 
 ## 命令语义
 
-- `prompt()` 在 SDK 接受 prompt 后返回，不等待整轮生成；完整结果由 event 流表达。
-- `steer()`、`followUp()` 和 `abort()` 直接保留 SDK 的语义，不在此层增加队列或 UI 策略。
+- `prompt()` 接收文本与可选 `PiImageAttachmentSource[]`；路径源从文件系统读取，无路径 data 源从 base64 解码，两者都使用 Bun 原生 `Bun.Image` 限制像素、缩放并编码为 Pi `ImageContent`。SDK 接受 prompt 后返回，不等待整轮生成。
+- `steer()`、`followUp()` 使用相同图片源语义；`abort()` 直接保留 SDK 语义，不在此层增加队列或 UI 策略。
 - `setModel()` 必须从当前 `ModelRuntime` 解析真实模型。
 - `setThinking()` 只修改当前 live session。
 - `requireResolvedAuthentication()` 在发送前验证当前模型能够解析凭据。
 - `prepareAuthenticationRetry()` 只负责将 session tree 回到失败 assistant message 的父节点；是否重试以及只能重试几次由 application 层决定。
+- 每条消息最多 8 张图片，单个路径或内存源解码前最多 64 MB，最多 1 亿像素；图片按顺序逐张处理以限制峰值内存，发送 payload 限制在 provider inline image 上限以内。
 
 ## 依赖边界
 
 - 可以运行时依赖 Node/Bun 标准能力和 Pi SDK；可以 type-only 依赖 `@shared` 输出契约。
+- 图片管线要求 Bun 1.3.14+ 的 `Bun.Image`。Electrobun 自带的 Bun 版本不能作为隐式假设：`electrobun.config.ts` 固定桌面 Bun 版本，主进程入口调用 `assertPiRuntimeCapabilities()` fail-fast。
 - 不依赖 Electrobun、Renderer 或 `src/bun/app`，不把 UI 策略放入 Pi 生命周期 owner。
 - SDK 类型若已满足需求就直接复用；只有 RPC 不安全字段才在 shared 契约中派生严格子集，并在本层执行唯一一次裁剪。
 - 不复制 Pi 的 auth、models、resources 或 session 数据库，也不自行解析 JSONL 代替 SDK。

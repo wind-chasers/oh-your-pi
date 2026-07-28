@@ -6,6 +6,7 @@ import type {
 } from "@earendil-works/pi-agent-core";
 import type {
 	AssistantMessage,
+	ImageContent,
 	ToolCall,
 	ToolResultMessage,
 	UserMessage,
@@ -26,7 +27,7 @@ export type SessionViewToolCall = {
 };
 
 export type SessionViewItem =
-	| { type: "user"; message: UserMessage; messageIndex: number; text: string }
+	| { type: "user"; message: UserMessage; messageIndex: number; text: string; images: ImageContent[] }
 	| { type: "assistant"; message: AssistantMessage; messageIndex: number; text: string; thinking: string }
 	| { type: "system"; message: BranchSummaryMessage | CompactionSummaryMessage; messageIndex: number; text: string }
 	| { type: "bash"; message: BashExecutionMessage; messageIndex: number }
@@ -176,7 +177,8 @@ function createSessionViewItems(messages: PiSessionMessage[]): SessionViewItem[]
 		}
 		flushPending();
 		if (message.role === "user") {
-			items.push({ type: "user", message, messageIndex, text: messageContentToText(message.content) });
+			const parts = readUserParts(message);
+			items.push({ type: "user", message, messageIndex, ...parts });
 		} else if (message.role === "branchSummary" || message.role === "compactionSummary") {
 			items.push({ type: "system", message, messageIndex, text: message.summary });
 		} else if (message.role === "bashExecution") {
@@ -201,6 +203,17 @@ function collectToolResults(messages: PiSessionMessage[]): Map<string, ToolResul
 		});
 	}
 	return results;
+}
+
+function readUserParts(message: UserMessage): { text: string; images: ImageContent[] } {
+	if (typeof message.content === "string") return { text: message.content, images: [] };
+	const text: string[] = [];
+	const images: ImageContent[] = [];
+	for (const block of message.content) {
+		if (block.type === "text") text.push(block.text);
+		else images.push(block);
+	}
+	return { text: text.filter(Boolean).join("\n"), images };
 }
 
 function readAssistantParts(message: AssistantMessage): AssistantParts {

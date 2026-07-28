@@ -6,6 +6,7 @@ import type {
 	PiAuthenticationStatus,
 	PiAuthenticationPromptResponse,
 	PiOpenedSession,
+	PiImageAttachment,
 	PiSessionAbortRequest,
 	PiSessionCommand,
 	PiSessionEvent,
@@ -73,6 +74,10 @@ export async function respondPiAuthenticationPrompt(request: PiAuthenticationPro
 	return rpc.request.respondAuthenticationPrompt(request);
 }
 
+
+export async function choosePiImageAttachments(): Promise<PiImageAttachment[]> {
+	return rpc.request.chooseImageAttachments({});
+}
 
 export async function choosePiWorkspace(): Promise<PiWorkspacePickerResult> {
 	return rpc.request.chooseWorkspace({});

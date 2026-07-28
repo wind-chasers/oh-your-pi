@@ -7,6 +7,17 @@ import { PiSessionRegistry } from "./session/registry";
 import { PiSession } from "./session";
 import { PiWorkspace } from "./workspace";
 
+type PiBunRuntime = {
+	version: string;
+	Image?: unknown;
+};
+
+export function assertPiRuntimeCapabilities(runtime: PiBunRuntime = Bun): void {
+	if (typeof runtime.Image !== "function") {
+		throw new Error(`桌面运行时 Bun ${runtime.version} 不支持 Bun.Image；需要 Bun 1.3.14 或更高版本。`);
+	}
+}
+
 export function registerPiOAuthFlows(): void {
 	registerBunOAuthFlows();
 }

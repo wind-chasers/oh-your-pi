@@ -1,3 +1,4 @@
+export { inspectPiImageAttachments, loadPiImageAttachments } from "./image-attachments";
 export {
 	type PiSessionHooks,
 	type PiToolCall,

@@ -33,6 +33,7 @@ function createTestApp(overrides: {
 }
 
 const desktop = {
+	chooseImageFiles: async () => [],
 	chooseWorkspaceDirectory: async () => null,
 	openExternalUrl: () => {},
 } satisfies DesktopSystem;

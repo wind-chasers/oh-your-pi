@@ -112,6 +112,22 @@ test("SessionView 缓存并合并相邻工具调用", () => {
 	]);
 });
 
+test("SessionView 保留用户消息中的图片内容", () => {
+	const image = { type: "image", data: "aW1hZ2U=", mimeType: "image/webp" } as const;
+	const snapshot = {
+		openedSession: openedSession([{
+			role: "user",
+			content: [{ type: "text", text: "分析图片" }, image],
+			timestamp: 0,
+		}]),
+	};
+	const view = new SessionView({ getSnapshot: () => snapshot } as ChatSession);
+	const item = view.items[0];
+	if (item.type !== "user") throw new Error("预期用户消息。");
+	expect(item.text).toBe("分析图片");
+	expect(item.images).toEqual([image]);
+});
+
 test("OAuth 错误按错误类型而不是 provider 名分类", () => {
 	const messages: PiSessionMessage[] = [{
 		api: "test",

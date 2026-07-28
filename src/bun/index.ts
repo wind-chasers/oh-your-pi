@@ -3,8 +3,10 @@ import { Application } from "@main/app";
 import { createMainWindow } from "@main/desktop/main-window";
 import { createDesktopSystem } from "@main/desktop/system";
 import { resolveMainViewUrl } from "@main/desktop/view-url";
-import { PiRuntime, registerPiOAuthFlows } from "@main/pi";
+import { assertPiRuntimeCapabilities, PiRuntime, registerPiOAuthFlows } from "@main/pi";
 import { createPiRpc } from "@main/rpc";
+
+assertPiRuntimeCapabilities();
 
 registerPiOAuthFlows();
 

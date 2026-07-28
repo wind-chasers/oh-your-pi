@@ -1,4 +1,5 @@
 import type {
+	PiImageAttachmentSource,
 	PiOpenedSession,
 	PiSessionEvent,
 	PiSessionRuntimeState,
@@ -21,7 +22,7 @@ import { SessionView } from "./session-view";
 import type { ChatSessionActivity, ChatSessionSnapshot } from "./types";
 import {
 	assertOpenedSessionIdentity,
-	requireText,
+	normalizePromptInput,
 	requireValue,
 	toErrorMessage,
 } from "./utils";
@@ -132,17 +133,20 @@ export class ChatSession {
 		return this.refreshPromise;
 	}
 
-	public async prompt(text: string): Promise<void> {
+	public async prompt(text: string, images: readonly PiImageAttachmentSource[] = []): Promise<void> {
 		const openedSession = this.requireOpenedSession();
-		const message = requireText(text);
+		const input = normalizePromptInput(text, images);
 		if (openedSession.runtime.isStreaming) {
 			throw new Error("Pi 会话正在运行，请使用 steer 或 followUp。");
 		}
 		const requestRevision = this.stream.eventRevision;
 		this.beginCommand();
-		this.publish(this.stream.beginPrompt(openedSession, message));
+		this.publish(this.stream.beginPrompt(
+			openedSession,
+			input.text || `[已附加 ${input.images.length} 张图片]`,
+		));
 		try {
-			const runtime = await promptPiSession({ sessionPath: this.path, text: message });
+			const runtime = await promptPiSession({ sessionPath: this.path, ...input });
 			if (!this.disposed && this.stream.eventRevision === requestRevision) {
 				this.applyRuntime(runtime);
 			}
@@ -160,12 +164,12 @@ export class ChatSession {
 		}
 	}
 
-	public async steer(text: string): Promise<void> {
-		await this.runStreamingCommand(text, "无法追加当前指令。", steerPiSession);
+	public async steer(text: string, images: readonly PiImageAttachmentSource[] = []): Promise<void> {
+		await this.runStreamingCommand(text, images, "无法追加当前指令。", steerPiSession);
 	}
 
-	public async followUp(text: string): Promise<void> {
-		await this.runStreamingCommand(text, "无法排队后续消息。", followUpPiSession);
+	public async followUp(text: string, images: readonly PiImageAttachmentSource[] = []): Promise<void> {
+		await this.runStreamingCommand(text, images, "无法排队后续消息。", followUpPiSession);
 	}
 
 	public async abort(): Promise<void> {
@@ -348,17 +352,18 @@ export class ChatSession {
 
 	private async runStreamingCommand(
 		text: string,
+		images: readonly PiImageAttachmentSource[],
 		fallbackError: string,
-		request: (input: { sessionPath: string; text: string }) => Promise<PiSessionRuntimeState>,
+		request: (input: { sessionPath: string; text: string; images?: PiImageAttachmentSource[] }) => Promise<PiSessionRuntimeState>,
 	): Promise<void> {
 		const openedSession = this.requireOpenedSession();
 		if (!openedSession.runtime.isStreaming) throw new Error("Pi 会话当前没有运行中的任务。");
-		const message = requireText(text);
+		const input = normalizePromptInput(text, images);
 		const requestRevision = this.stream.eventRevision;
 		this.beginCommand();
 		this.publish({ error: null });
 		try {
-			const runtime = await request({ sessionPath: this.path, text: message });
+			const runtime = await request({ sessionPath: this.path, ...input });
 			if (!this.disposed && this.stream.eventRevision === requestRevision) {
 				this.applyRuntime(runtime);
 			}

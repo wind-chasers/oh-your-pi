@@ -1,5 +1,6 @@
 import type {
 	PiOpenedSession,
+	PiImageAttachment,
 	PiSessionAbortRequest,
 	PiSessionCommand,
 	PiSessionEvent as AppSessionEvent,
@@ -14,7 +15,13 @@ import type {
 	PiToolPermissionResponse,
 	PiWorkspaceRequest,
 } from "@shared/pi-contract";
-import type { PiRuntime, PiSession, PiSessionEvent, PiSessionHooks } from "@main/pi";
+import {
+	inspectPiImageAttachments,
+	type PiRuntime,
+	type PiSession,
+	type PiSessionEvent,
+	type PiSessionHooks,
+} from "@main/pi";
 import type { AuthenticationApplication } from "@main/app/authentication";
 import { toAppSessionEvents } from "./events";
 import { ToolPermissionApplication } from "./permissions";
@@ -68,6 +75,10 @@ export class SessionApplication {
 		return session.getSnapshot();
 	}
 
+	async inspectImageAttachments(paths: readonly string[]): Promise<PiImageAttachment[]> {
+		return inspectPiImageAttachments(paths);
+	}
+
 	async setModel(input: PiSessionModelRequest): Promise<PiOpenedSession> {
 		const session = this.pi.getSession(input.sessionPath);
 		this.requireIdle(session);
@@ -89,20 +100,20 @@ export class SessionApplication {
 		return this.authentication.withProviderOperation(provider, async () => {
 			await session.requireResolvedAuthentication();
 			this.recovery.promptStarted(session.path);
-			await session.prompt(input.text);
+			await session.prompt(input.text, input.images);
 			return session.getSnapshot().runtime;
 		});
 	}
 
 	async steer(input: PiSessionCommand): Promise<PiSessionRuntimeState> {
 		const session = this.pi.getSession(input.sessionPath);
-		await session.steer(input.text);
+		await session.steer(input.text, input.images);
 		return session.getSnapshot().runtime;
 	}
 
 	async followUp(input: PiSessionCommand): Promise<PiSessionRuntimeState> {
 		const session = this.pi.getSession(input.sessionPath);
-		await session.followUp(input.text);
+		await session.followUp(input.text, input.images);
 		return session.getSnapshot().runtime;
 	}
 

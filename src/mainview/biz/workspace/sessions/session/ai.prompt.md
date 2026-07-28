@@ -19,13 +19,13 @@ useChatSession(workspacePath, sessionId, sessionPath)
 - `snapshot.isSending`、`isRefreshing`、`error`：会话请求状态。
 - `session.view.items`：由 `SessionView` 缓存的持久 render items。
 
-组件内部只保留输入框 `draft`、文件树开关等纯 UI 状态。切换 session identity 时由父组件 key 触发重建；后台 session 继续由 Chat Store 接收事件，不随界面卸载终止。
+`SessionChat` 只保留 transcript 滚动锚点等容器 UI 状态；`ChatComposer` 内聚 draft、待发送附件、预览和 prompt / steer / follow-up 用户意图。切换 session identity 时由父组件 key 触发 Composer 重建；后台 session 继续由 Chat Store 接收事件，不随界面卸载终止。
 
 ## 用户意图
 
-- idle 提交：`session.prompt(text)`。
-- streaming 普通提交：`session.steer(text)`。
-- streaming follow-up：`session.followUp(text)`。
+- idle 提交：`session.prompt(text, images)`。
+- streaming 普通提交：`session.steer(text, images)`。
+- streaming follow-up：`session.followUp(text, images)`。
 - abort：`session.abort()`。
 - 模型与 thinking：`session.setModel()` / `session.setThinking()`。
 - 工具授权：`session.respondToPermission()`。
@@ -40,6 +40,7 @@ useChatSession(workspacePath, sessionId, sessionPath)
 - assistant toolCall 按 SDK tool call ID 关联独立 toolResult。
 - 相邻工具调用合并为一个 `tool-section`。
 - render items 按 transcript messages 对象身份缓存，切回会话时直接复用。
+- user message 保留 Pi transcript 中的图片内容并以缩略图 + 可切换预览窗展示。
 
 `ChatTranscript` 只分发 `SessionViewItem[]`，再把当前轮临时文本与 `snapshot.tools` 接到末尾，不扫描线性 transcript，也不实现第二份合并规则。
 
@@ -47,12 +48,17 @@ useChatSession(workspacePath, sessionId, sessionPath)
 
 ## 组件边界
 
-- `index.tsx`：把 Chat Store snapshot/session 适配给展示组件并转发用户意图。
+- `index.tsx`：把 Chat Store snapshot/session 适配给 Header、Transcript、权限提示与 Composer，不持有输入状态或发送操作。
 - `chat/ChatTranscript.tsx`：分发 `SessionViewItem[]`，组合当前轮临时输出。
 - `chat/messages/`：普通消息展示。
 - `chat/tools/`：工具 section、详情骨架、动画、renderer registry。
-- `chat/ChatComposer.tsx`：draft、发送动作和模型可用性展示。
-- `chat/ModelThinkingSelector.tsx`：通过 `ChatSession` 修改模型和 thinking。
+- `chat/composer/ChatComposer.tsx`：拥有 draft、待发送附件及其 prompt / steer / follow-up 操作，协调输入区、附件区、工具栏和错误展示。
+- `chat/composer/ComposerAttachments.tsx`：待发送图片的缩略图、移除操作与预览入口。
+- `chat/composer/ComposerToolbar.tsx`：附件选择、模型/thinking、认证、follow-up 与发送操作。
+- `chat/composer/use-composer-attachments.ts`：原生选择与粘贴附件的合并、去重、上限、错误和预览索引状态。
+- `chat/composer/paste.ts`：从 textarea paste 事件的 `DataTransfer` 读取二进制图片，生成 Renderer 预览和无路径 data source；不依赖系统文件路径或额外 RPC。
+- `chat/composer/ModelThinkingSelector.tsx`：通过 `ChatSession` 修改模型和 thinking。
+- `chat/ImagePreviewDialog.tsx`：Composer 与历史用户消息共用的全屏图片查看器，支持方向键和前后切换。
 - `chat/ToolPermissionPrompt.tsx`：展示队首授权并返回决定。
 - `settings/`、`export/`：session 附属界面，不持有第二份 transcript。
 
@@ -66,5 +72,6 @@ useChatSession(workspacePath, sessionId, sessionPath)
 - settled refresh 完成前增量内容不闪空，完成后正确清理对应 generation。
 - 工具授权队列和拒绝状态。
 - 缺少凭据时显示认证入口。
+- 图片模型能力、附件上限、文件选择、截图软件二进制粘贴、预览切换和图片内容发送。
 
 优先运行 chat-store 共置测试和 `chat/SessionChat.test.tsx`，最终运行 `bun run verify`；布局和高度动画使用真实 Renderer 路径验证。

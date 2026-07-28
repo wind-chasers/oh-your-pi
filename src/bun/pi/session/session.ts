@@ -10,9 +10,11 @@ import {
 	type SessionTreeNode,
 } from "@earendil-works/pi-coding-agent";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-import type { PiOpenedSession } from "@shared/pi-contract";
+import type { ImageContent } from "@earendil-works/pi-ai";
+import type { PiImageAttachmentSource, PiOpenedSession } from "@shared/pi-contract";
 import { PiError, toError } from "../errors";
 import { createSessionExtensionFactories, type PiSessionHooks } from "./hooks";
+import { loadPiImageAttachments } from "./image-attachments";
 import { createPiOpenedSession } from "./snapshot";
 
 export type PiSessionEvent = AgentSessionEvent | { type: "error"; error: Error };
@@ -79,18 +81,20 @@ export class PiSession {
 		this.requireAgentSession().setThinkingLevel(level);
 	}
 
-	async prompt(text: string): Promise<void> {
-		await submitSessionPrompt(this.requireAgentSession(), text, (error) => {
+	async prompt(text: string, imageSources: readonly PiImageAttachmentSource[] = []): Promise<void> {
+		const session = this.requireAgentSession();
+		const images = await this.prepareImages(imageSources);
+		await submitSessionPrompt(session, text, images, (error) => {
 			this.emit({ type: "error", error });
 		});
 	}
 
-	async steer(text: string): Promise<void> {
-		await this.requireAgentSession().steer(text);
+	async steer(text: string, imageSources: readonly PiImageAttachmentSource[] = []): Promise<void> {
+		await this.requireAgentSession().steer(text, await this.prepareImages(imageSources));
 	}
 
-	async followUp(text: string): Promise<void> {
-		await this.requireAgentSession().followUp(text);
+	async followUp(text: string, imageSources: readonly PiImageAttachmentSource[] = []): Promise<void> {
+		await this.requireAgentSession().followUp(text, await this.prepareImages(imageSources));
 	}
 
 	async abort(): Promise<void> {
@@ -168,6 +172,17 @@ export class PiSession {
 		session.dispose();
 	}
 
+	private async prepareImages(
+		imageSources: readonly PiImageAttachmentSource[],
+	): Promise<ImageContent[] | undefined> {
+		if (imageSources.length === 0) return undefined;
+		const model = this.requireAgentSession().model;
+		if (!model?.input.includes("image")) {
+			throw new Error("当前模型不支持图片输入。");
+		}
+		return loadPiImageAttachments(imageSources);
+	}
+
 	private emit(event: PiSessionEvent): void {
 		for (const listener of this.listeners) listener(event);
 	}
@@ -186,10 +201,12 @@ export class PiSession {
 export async function submitSessionPrompt(
 	session: Pick<AgentSession, "prompt">,
 	text: string,
+	images: ImageContent[] | undefined,
 	onError: (error: Error) => void,
 ): Promise<void> {
 	const { promise: accepted, reject, resolve } = Promise.withResolvers<void>();
 	void session.prompt(text, {
+		images,
 		preflightResult: (success) => {
 			if (success) resolve();
 			else reject(new Error("Pi 未接受这条消息。"));

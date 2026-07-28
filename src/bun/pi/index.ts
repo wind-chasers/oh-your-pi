@@ -1,6 +1,6 @@
 export { classifyPiError, PiError, type PiErrorCode } from "./errors";
 export { PiAuthentication } from "./authentication";
-export { PiRuntime, registerPiOAuthFlows } from "./runtime";
+export { assertPiRuntimeCapabilities, PiRuntime, registerPiOAuthFlows } from "./runtime";
 export {
 	PiSession,
 	type PiSessionEvent,
@@ -8,4 +8,5 @@ export {
 	type PiToolCall,
 	type PiToolCallDecision,
 } from "./session";
+export { inspectPiImageAttachments, loadPiImageAttachments } from "./session";
 export { type PiResourceSnapshot, PiWorkspace } from "./workspace";

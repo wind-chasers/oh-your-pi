@@ -65,6 +65,23 @@ export type PiWorkspacePickerResult = {
 	workspacePath: string | null;
 };
 
+export const PI_IMAGE_ATTACHMENT_LIMIT = 8;
+export const PI_IMAGE_ATTACHMENT_MAX_SOURCE_BYTES = 64 * 1024 * 1024;
+export const PI_IMAGE_ATTACHMENT_MAX_SOURCE_PIXELS = 100_000_000;
+
+export type PiImageAttachmentSource =
+	| { type: "path"; path: string }
+	| { type: "data"; data: string; mimeType: string; name: string };
+
+export type PiImageAttachment = {
+	id: string;
+	source: PiImageAttachmentSource;
+	name: string;
+	previewDataUrl: string;
+	width: number;
+	height: number;
+};
+
 export type PiSessionTranscriptRequest = {
 	workspacePath: string;
 	sessionPath: string;
@@ -73,6 +90,7 @@ export type PiSessionTranscriptRequest = {
 export type PiSessionCommand = {
 	sessionPath: string;
 	text: string;
+	images?: PiImageAttachmentSource[];
 };
 
 export type PiSessionAbortRequest = {

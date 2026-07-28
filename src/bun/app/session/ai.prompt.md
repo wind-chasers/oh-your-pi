@@ -19,18 +19,20 @@ sequenceDiagram
   participant Session as PiSession
   participant Recovery as SessionRecovery
 
-  RPC->>App: prompt(sessionPath, text)
+  RPC->>App: prompt(sessionPath, text, images?)
   App->>Session: get live session
   App->>Auth: withProviderOperation(provider)
   App->>Session: requireResolvedAuthentication
   App->>Recovery: promptStarted
-  App->>Session: prompt
+  App->>Session: prompt(text, images)
   Session-->>App: accepted runtime state
   Session-->>App: async events
   App-->>RPC: shared session events
 ```
 
 只有 `prompt` 在发送前解析 provider 认证并开启恢复窗口。`steer`、`followUp` 和 `abort` 作用于已经打开的 session，保留 Pi 原生语义。模型和 thinking 只能在 session idle 时修改。
+
+原生文件选择由主进程返回规范化路径和受限预览；textarea 粘贴直接由 Web Clipboard API 读取二进制图片，因此不要求图片具有系统路径。发送时两者统一为 `PiImageAttachmentSource`：路径源由主进程重新读取，data 源通过 RPC 传递原始 base64。Pi 边界不能信任 Renderer 提供的 MIME、名称、尺寸或预览，必须重新限制大小、解码、检查像素并编码。
 
 ## Session subscription
 

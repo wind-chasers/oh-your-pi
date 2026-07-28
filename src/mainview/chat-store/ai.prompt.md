@@ -76,7 +76,7 @@ flowchart LR
 ### `ChatSession`
 
 - 持有稳定的 `ChatSessionSnapshot`，供 `useSyncExternalStore` 消费。
-- 负责加载、刷新、prompt、steer、follow-up、abort、模型切换、thinking 切换和工具授权响应。
+- 负责加载、刷新、携带 `PiImageAttachmentSource[]` 的 prompt/steer/follow-up、abort、模型切换、thinking 切换和工具授权响应。
 - 持有 `SessionStream` 和 `SessionView`，但不自行实现它们内部的流归并或渲染计算。
 - `agent_settled` 后刷新持久 transcript；刷新完成前保留增量内容，防止界面空白闪烁。
 
@@ -95,6 +95,7 @@ flowchart LR
 - 不生成空 assistant item；只有文本、thinking 或错误文本时才渲染 assistant。
 - 连续的 tool-call-only assistant messages 合并为一个 `tool-section` ViewItem。
 - tool result 与 tool call 在这里配对，组件不重复扫描线性消息列表。
+- user item 分离文本与 Pi `ImageContent`，历史消息无需组件再次解析 content。
 - `cache(key, dependencies, calculate)` 为后续其他 session 级渲染计算提供通用缓存。
 
 
@@ -135,7 +136,7 @@ useChatSession(workspacePath, sessionId, sessionPath)
 
 - hook 自动 acquire、打开、订阅并在卸载时 release；
 - 展示读取 `snapshot` 和 `session.view.items`；
-- 用户意图调用 `session.prompt()`、`session.abort()` 等方法；
+- 用户意图调用 `session.prompt(text, images)`、`session.steer(text, images)`、`session.followUp(text, images)`、`session.abort()` 等方法；
 - 组件不得直接调用 session RPC、订阅 session events 或重新计算 ViewItem。
 
 ## 关键不变量

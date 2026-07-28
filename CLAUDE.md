@@ -71,7 +71,7 @@ Agent 可以按需创建 `ai.prompt.md`。只有满足至少一项时才创建�
 
 ### 样式管理
 
-- 绝大部分时候，直接使用 tailwindcss 来写样式，不允许使用 css 文件，极少数时候，样式比较复杂时，可以创建 .scss 文件，并和组件放在一起
+- 绝大部分时候，直接使用 tailwindcss 来写样式，不允许使用 css 文件，极少数时候，样式比较复杂时，可以创建 .scss 文件，并和组件放在一起，不轻易使用 rem，使用 px
 - 直接 `className="..."` 来写样式，不要先定义常量再赋值，比如 `const XXSTYLE="xxx"`，然后 `className={XXSTYLE}`，这样会增加阅读成本
 
 

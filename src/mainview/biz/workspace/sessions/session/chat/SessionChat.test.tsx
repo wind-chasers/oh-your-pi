@@ -10,6 +10,7 @@ import type { ReactElement } from "react";
 import { WithStore } from "@view/atom";
 import { TooltipProvider } from "@view/components/ui/tooltip";
 
+
 mock.module("electrobun/view", () => ({
 	Electroview: {
 		defineRPC: () => ({
@@ -19,6 +20,7 @@ mock.module("electrobun/view", () => ({
 		}),
 	},
 }));
+
 
 (globalThis as { window?: unknown }).window = {};
 
@@ -155,6 +157,7 @@ describe("SessionChat", () => {
 		expect(html).toContain('aria-label="思考级别"');
 		expect(html).not.toContain("Unavailable model");
 		expect(html).toContain('data-slot="select-trigger"');
+		expect(html).toContain('aria-label="添加图片附件"');
 
 		const composer = html.match(
 			/<textarea\b[^>]*aria-label="发送给 Pi 的消息"[^>]*>/,
@@ -164,6 +167,24 @@ describe("SessionChat", () => {
 		expect(composer![0]).toContain('rows="1"');
 		expect(html).not.toContain("准备好接管此会话？");
 	});
+	test("不支持图像的模型禁用附件入口", () => {
+		const html = renderSessionChat(authentication, {
+			...openedSession,
+			runtime: {
+				...openedSession.runtime,
+				model: openedSession.runtime.model
+					? { ...openedSession.runtime.model, input: ["text"] }
+					: undefined,
+			},
+		});
+		const attachmentButton = html.match(
+			/<button\b[^>]*aria-label="添加图片附件"[^>]*>/,
+		);
+		expect(attachmentButton).not.toBeNull();
+		expect(attachmentButton![0]).toContain('disabled=""');
+	});
+
+
 
 	test("用户与助手消息不显示冗余说话人标签", () => {
 		const html = renderSessionChat(authentication, {
