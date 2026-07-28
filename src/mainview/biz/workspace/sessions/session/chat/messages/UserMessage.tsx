@@ -8,22 +8,23 @@ import { cn } from "@view/lib/utils";
 type UserMessageProps = {
 	images: readonly ImageContent[];
 	text: string;
+	isPending?: boolean;
 };
 
-export function UserMessage({ images, text }: UserMessageProps) {
+export function UserMessage({ images, isPending = false, text }: UserMessageProps) {
 	if (images.length === 0 && text.trim() === "") {
 		return null;
 	}
 
 	return (
-		<article className="ml-auto w-fit max-w-[85%]" data-dbg="user-message">
-			<div className="flex flex-col gap-2 rounded-2xl rounded-br-xs bg-primary px-4 py-2 text-sm text-primary-foreground">
+		<article className="ml-auto w-fit max-w-[90%]" data-dbg="user-message">
+			<div className="flex flex-col gap-2 rounded-2xl rounded-br-md bg-primary px-3 py-2 text-sm text-primary-foreground shadow-sm">
+				{isPending ? <p className="text-xs font-medium text-primary-foreground/70">已发送</p> : null}
 				{images.length > 0 ? <UserMessageImages images={images} /> : null}
 				{text ? <MarkdownContent>{text}</MarkdownContent> : null}
 			</div>
 		</article>
 	);
-
 }
 
 type UserMessageImagesProps = {
