@@ -7,6 +7,7 @@
 		"dev": "concurrently --kill-others-on-fail \"bun run dev:web\" \"bun run dev:main\"",
 		"dev:main": "electrobun dev --watch",
 		"dev:web": "vite --port 5173",
+		"icons:generate": "bun run scripts/generate-app-icons.ts",
 		"build:canary": "vite build && electrobun build --env=canary",
 		"build:stable": "vite build && electrobun build --env=stable",
 		"build": "vite build && electrobun build",
@@ -43,6 +44,7 @@
 		"postcss": "^8.4.49",
 		"sass": "^1.101.6",
 		"shadcn": "^4.14.0",
+		"sharp": "^0.35.3",
 		"tailwindcss": "^4.3.3",
 		"typescript": "^7.0.2",
 		"vite": "^8.1.5"

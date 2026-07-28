@@ -1,5 +1,6 @@
-import { Bot, Moon, Sun } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import type { ReactElement } from "react";
+import { Logo } from "@view/logo";
 import { Button } from "@view/components/ui/button";
 import {
 	Tooltip,
@@ -38,12 +39,13 @@ export function AppSidebar(): ReactElement {
 					</TooltipContent>
 				</Tooltip>
 				<AppSettingsDialog />
-				<div
-					aria-label="Oh Your Pi"
-					className="flex size-7 items-center justify-center rounded-lg border"
-					role="img"
-				>
-					<Bot aria-hidden size={14} />
+				<div className="flex size-7 items-center justify-center rounded-lg border bg-white p-1.5 shadow-xs dark:bg-transparent dark:shadow-none">
+					<Logo
+						aria-label="Oh Your Pi"
+						className="size-full"
+						mode={isDarkMode ? "dark" : "light"}
+						role="img"
+					/>
 				</div>
 			</div>
 		</aside>
