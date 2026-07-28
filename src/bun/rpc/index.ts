@@ -7,6 +7,7 @@ type DefinedPiRpc = ReturnType<typeof BrowserView.defineRPC<PiRpcSchema>>;
 
 export type PiRpcBinding = {
 	rpc: DefinedPiRpc;
+	openAppSettings(): void;
 	dispose(): void;
 };
 
@@ -55,6 +56,9 @@ export function createPiRpc(options: { app: Application; desktop: DesktopSystem 
 	let disposed = false;
 
 	return {
+		openAppSettings() {
+			rpc.send.openAppSettings({});
+		},
 		rpc,
 		dispose() {
 			if (disposed) return;

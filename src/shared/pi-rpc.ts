@@ -57,6 +57,7 @@ export interface PiRpcSchema extends ElectrobunRPCSchema {
 	webview: {
 		requests: {};
 		messages: {
+			openAppSettings: Record<string, never>;
 			sessionEvent: PiSessionEvent;
 			authenticationEvent: PiAuthenticationEvent;
 			toolPermissionRequest: PiToolPermissionRequest;

@@ -35,6 +35,12 @@ const rpc = Electroview.defineRPC<PiRpcSchema>({
 
 if (window.__electrobun) new Electroview({ rpc });
 
+export function subscribeToOpenAppSettings(listener: () => void): () => void {
+	const handleMessage = () => listener();
+	rpc.addMessageListener("openAppSettings", handleMessage);
+	return () => rpc.removeMessageListener("openAppSettings", handleMessage);
+}
+
 export function subscribeToPiSessionEvents(listener: (event: PiSessionEvent) => void): () => void {
 	rpc.addMessageListener("sessionEvent", listener);
 	return () => rpc.removeMessageListener("sessionEvent", listener);

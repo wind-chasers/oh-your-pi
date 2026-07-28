@@ -3,12 +3,13 @@ import type { Application } from "@main/app";
 import type { DesktopSystem } from "@main/desktop/system";
 
 let requestHandlers: Record<string, (input: never) => unknown> | undefined;
+const openAppSettings = mock(() => undefined);
 
 mock.module("electrobun/bun", () => ({
 	BrowserView: {
 		defineRPC: (options: { handlers: { requests: Record<string, (input: never) => unknown> } }) => {
 			requestHandlers = options.handlers.requests;
-			return { send: { authenticationEvent: () => {}, sessionEvent: () => {}, toolPermissionRequest: () => {} } };
+			return { send: { authenticationEvent: () => {}, openAppSettings, sessionEvent: () => {}, toolPermissionRequest: () => {} } };
 		},
 	},
 }));
@@ -50,4 +51,10 @@ test("认证提供商检查不要求工作区参数", () => {
 	createPiRpc({ app: createTestApp({ list }), desktop });
 	requestHandlers?.inspectAuthentication({} as never);
 	expect(list).toHaveBeenCalledWith();
+});
+
+test("设置菜单命令被发送给 Renderer", () => {
+	const binding = createPiRpc({ app: createTestApp({}), desktop });
+	binding.openAppSettings();
+	expect(openAppSettings).toHaveBeenCalledWith({});
 });
