@@ -1,6 +1,8 @@
 import { CircleStop, FolderTree } from "lucide-react";
 import { type ReactElement } from "react";
+import type { PiOpenedSession } from "@shared/pi-contract";
 import { Button } from "@view/components/ui/button";
+import { ContextBadge } from "./ContextBadge";
 
 type ChatHeaderProps = {
 	entryCount: number;
@@ -8,6 +10,7 @@ type ChatHeaderProps = {
 	isStreaming: boolean;
 	onAbort: () => Promise<void>;
 	onToggleFileTree: () => void;
+	openedSession: PiOpenedSession;
 	title: string;
 };
 
@@ -17,17 +20,19 @@ export function ChatHeader({
 	isStreaming,
 	onAbort,
 	onToggleFileTree,
+	openedSession,
 	title,
 }: ChatHeaderProps): ReactElement {
 	return (
 		<header className="flex items-center justify-between gap-4 border-b px-5 h-10">
 			<div className="min-w-0 flex items-center gap-2">
-				<div className="truncate font-semibold">{title}</div>
-				<p className="mt-0.5 text-xs text-muted-foreground">
+				<div className="truncate font-semibold max-w-[50%]">{title}</div>
+				<p className="mt-0.5 text-xs text-muted-foreground whitespace-nowrap">
 					{isStreaming ? "正在生成回复" : `${entryCount} 条消息`}
 				</p>
 			</div>
 			<div className="flex items-center gap-1">
+				<ContextBadge openedSession={openedSession} />
 				{isStreaming ? (
 					<Button onClick={() => void onAbort()} size="sm" type="button" variant="outline">
 						<CircleStop aria-hidden />

@@ -11,10 +11,10 @@ import {
 	SelectValue,
 } from "@view/components/ui/select";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@view/components/ui/tooltip";
+	HoverCard,
+	HoverCardContent,
+	HoverCardTrigger,
+} from "@view/components/ui/hover-card";
 
 type ModelThinkingSelectorProps = {
 	isUpdating: boolean;
@@ -69,8 +69,8 @@ export function ModelThinkingSelector({
 					onValueChange={handleModelChange}
 					value={selectedModelValue}
 				>
-					<Tooltip>
-						<TooltipTrigger asChild>
+					<HoverCard closeDelay={120} openDelay={150}>
+						<HoverCardTrigger asChild>
 							<SelectTrigger
 								aria-label="模型"
 								indicator="none"
@@ -80,9 +80,9 @@ export function ModelThinkingSelector({
 									{selectedModel?.name}
 								</SelectValue>
 							</SelectTrigger>
-						</TooltipTrigger>
-						{selectedModel ? <ModelTooltip model={selectedModel} /> : null}
-					</Tooltip>
+						</HoverCardTrigger>
+						{selectedModel ? <ModelHoverCard model={selectedModel} /> : null}
+					</HoverCard>
 					<SelectContent className="min-w-max" position="popper">
 						<SelectGroup>
 							{availableModels.map((candidate) => (
@@ -121,23 +121,23 @@ export function ModelThinkingSelector({
 	);
 }
 
-function ModelTooltip({ model }: { model: PiModel }): ReactElement {
+function ModelHoverCard({ model }: { model: PiModel }): ReactElement {
 	return (
-		<TooltipContent showArrow={false} side="top">
-			<div className="flex min-w-52 flex-col gap-1.5">
+		<HoverCardContent align="start" className="w-64" side="top">
+			<div className="flex flex-col gap-1.5">
 				<p className="font-medium">{model.name}</p>
 				<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-					<dt className="opacity-70">提供商</dt>
+					<dt className="text-muted-foreground">提供商</dt>
 					<dd>{model.provider}</dd>
-					<dt className="opacity-70">上下文窗口</dt>
+					<dt className="text-muted-foreground">上下文窗口</dt>
 					<dd>{model.contextWindow.toLocaleString("zh-CN")} tokens</dd>
-					<dt className="opacity-70">图像</dt>
+					<dt className="text-muted-foreground">图像</dt>
 					<dd>{supportLabel(model.input.includes("image"))}</dd>
-					<dt className="opacity-70">推理</dt>
+					<dt className="text-muted-foreground">推理</dt>
 					<dd>{supportLabel(model.reasoning)}</dd>
 				</dl>
 			</div>
-		</TooltipContent>
+		</HoverCardContent>
 	);
 }
 

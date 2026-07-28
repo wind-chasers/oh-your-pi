@@ -100,6 +100,7 @@ export function SessionChat({
 				isStreaming={isStreaming}
 				onAbort={handleAbort}
 				onToggleFileTree={onToggleFileTree}
+				openedSession={openedSession}
 				title={sessionTitle}
 			/>
 			<ChatTranscript
