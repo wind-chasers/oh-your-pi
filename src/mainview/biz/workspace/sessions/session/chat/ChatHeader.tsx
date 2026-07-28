@@ -25,7 +25,7 @@ export function ChatHeader({
 }: ChatHeaderProps): ReactElement {
 	return (
 		<header className="flex items-center justify-between gap-4 border-b px-5 h-10">
-			<div className="min-w-0 flex items-center gap-2">
+			<div className="min-w-0 flex flex-1 items-center gap-2">
 				<div className="truncate font-semibold max-w-[50%]">{title}</div>
 				<p className="mt-0.5 text-xs text-muted-foreground whitespace-nowrap">
 					{isStreaming ? "正在生成回复" : `${entryCount} 条消息`}

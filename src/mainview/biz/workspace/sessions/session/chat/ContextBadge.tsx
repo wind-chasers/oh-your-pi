@@ -175,7 +175,7 @@ function UsageSection({
 				<span className="font-medium leading-4">{label}</span>
 			</div>
 			<div className="flex flex-col gap-1">
-				<UsageRow label="提示输入" tokens={promptInput} />
+				<UsageRow label="输入" tokens={promptInput} />
 				<UsageRow label="未缓存输入" tokens={usage.input} indent muted />
 				<UsageRow label="缓存读取" tokens={usage.cacheRead} indent muted />
 				<UsageRow label="缓存写入" tokens={usage.cacheWrite} indent muted />
