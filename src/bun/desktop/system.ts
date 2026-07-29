@@ -4,6 +4,7 @@ export type DesktopSystem = {
 	chooseWorkspaceDirectory(): Promise<string | null>;
 	chooseImageFiles(): Promise<string[]>;
 	openExternalUrl(url: string): void;
+	openWorkspaceFolder(path: string): void;
 };
 
 
@@ -28,6 +29,9 @@ export function createDesktopSystem(): DesktopSystem {
 		},
 		openExternalUrl(url) {
 			Utils.openExternal(url);
+		},
+		openWorkspaceFolder(path) {
+			if (!Utils.openPath(path)) throw new Error("无法在文件管理器中打开工作区。");
 		},
 	};
 }

@@ -1,5 +1,7 @@
 import type {
 	PiResourceSummary,
+	PiWorkspaceGit,
+	PiWorkspaceGitBranchRequest,
 	PiWorkspaceFile,
 	PiWorkspaceFileContent,
 	PiWorkspaceFileRequest,
@@ -8,6 +10,7 @@ import type {
 import type { PiRuntime } from "@main/pi";
 import { redactSensitiveText } from "@main/utils/redact-sensitive-text";
 import { listWorkspaceFiles, readWorkspaceFile } from "./files";
+import { inspectWorkspaceGit, switchWorkspaceGitBranch } from "./git";
 
 type WorkspaceResourceSnapshot = {
 	workspacePath: string;
@@ -52,5 +55,13 @@ export class WorkspaceApplication {
 
 	async readFile(input: PiWorkspaceFileRequest): Promise<PiWorkspaceFileContent> {
 		return readWorkspaceFile(input);
+	}
+
+	async inspectGit(input: PiWorkspaceRequest): Promise<PiWorkspaceGit | null> {
+		return inspectWorkspaceGit(input.workspacePath);
+	}
+
+	async switchGitBranch(input: PiWorkspaceGitBranchRequest): Promise<PiWorkspaceGit> {
+		return switchWorkspaceGitBranch(input);
 	}
 }

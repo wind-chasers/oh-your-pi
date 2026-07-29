@@ -1,6 +1,6 @@
 import { type ReactElement, useEffect, useState } from "react";
 import { SelectedSessionAtom, WorkspaceAtom } from "@view/states/current.atom";
-import { WorkspaceAttr } from "./WorkspaceAttr";
+import { WorkspaceAttr } from "./attr";
 import { SessionChat } from "./sessions/session";
 import { FilePreview } from "./files/FilePreview";
 import { WorkspaceFileExplorer } from "./files/WorkspaceFileExplorer";
@@ -16,7 +16,7 @@ function SidePannel(props: {
 	if (fileTreeOpen) return null;
 
 	return (
-		<div className="flex min-h-0 w-65 flex-col border-r bg-muted/20">
+		<div className="shrink-0 min-h-0 w-65 flex flex-col border-r bg-muted/20">
 			<SessionList />
 			<WorkspaceAttr />
 		</div>

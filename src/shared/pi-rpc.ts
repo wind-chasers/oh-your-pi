@@ -25,6 +25,8 @@ import type {
 	PiWorkspaceFile,
 	PiWorkspaceFileContent,
 	PiWorkspaceFileRequest,
+	PiWorkspaceGit,
+	PiWorkspaceGitBranchRequest,
 } from "./pi-contract";
 
 export interface PiRpcSchema extends ElectrobunRPCSchema {
@@ -40,6 +42,9 @@ export interface PiRpcSchema extends ElectrobunRPCSchema {
 			chooseImageAttachments: { params: Record<string, never>; response: PiImageAttachment[] };
 			listWorkspaceFiles: { params: PiWorkspaceFileRequest; response: PiWorkspaceFile[] };
 			readWorkspaceFile: { params: PiWorkspaceFileRequest; response: PiWorkspaceFileContent };
+			openWorkspaceFolder: { params: PiWorkspaceRequest; response: void };
+			inspectWorkspaceGit: { params: PiWorkspaceRequest; response: PiWorkspaceGit | null };
+			switchWorkspaceGitBranch: { params: PiWorkspaceGitBranchRequest; response: PiWorkspaceGit };
 			readSessionTranscript: { params: PiSessionTranscriptRequest; response: PiSessionTranscript };
 			openSession: { params: PiSessionTranscriptRequest; response: PiOpenedSession };
 			createSession: { params: PiWorkspaceRequest; response: PiOpenedSession };

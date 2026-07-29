@@ -65,6 +65,15 @@ export type PiWorkspacePickerResult = {
 	workspacePath: string | null;
 };
 
+export type PiWorkspaceGit = {
+	branches: string[];
+	currentBranch: string | null;
+};
+
+export type PiWorkspaceGitBranchRequest = PiWorkspaceRequest & {
+	branch: string;
+};
+
 export const PI_IMAGE_ATTACHMENT_LIMIT = 8;
 export const PI_IMAGE_ATTACHMENT_MAX_SOURCE_BYTES = 64 * 1024 * 1024;
 export const PI_IMAGE_ATTACHMENT_MAX_SOURCE_PIXELS = 100_000_000;

@@ -25,6 +25,8 @@ import type {
 	PiWorkspaceFileContent,
 	PiWorkspaceFileRequest,
 	PiWorkspaceSnapshot,
+	PiWorkspaceGit,
+	PiWorkspaceGitBranchRequest,
 } from "@shared/pi-contract";
 import type { PiRpcSchema } from "@shared/pi-rpc";
 
@@ -87,6 +89,20 @@ export async function choosePiImageAttachments(): Promise<PiImageAttachment[]> {
 
 export async function choosePiWorkspace(): Promise<PiWorkspacePickerResult> {
 	return rpc.request.chooseWorkspace({});
+}
+
+export async function openPiWorkspaceFolder(request: PiWorkspaceRequest): Promise<void> {
+	return rpc.request.openWorkspaceFolder(request);
+}
+
+export async function inspectPiWorkspaceGit(request: PiWorkspaceRequest): Promise<PiWorkspaceGit | null> {
+	return rpc.request.inspectWorkspaceGit(request);
+}
+
+export async function switchPiWorkspaceGitBranch(
+	request: PiWorkspaceGitBranchRequest,
+): Promise<PiWorkspaceGit> {
+	return rpc.request.switchWorkspaceGitBranch(request);
 }
 
 
