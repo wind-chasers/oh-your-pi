@@ -1,17 +1,20 @@
 import type { ImageContent } from "@earendil-works/pi-ai";
+import { Pencil } from "lucide-react";
 import { type ReactElement, useState } from "react";
 import { ImagePreviewDialog } from "../ImagePreviewDialog";
 import { MarkdownContent } from "@view/components/markdown/markdown-content";
 import { Button } from "@view/components/ui/button";
 import { cn } from "@view/lib/utils";
+import { CopyButton, MessageTimestamp } from "./shared";
 
 type UserMessageProps = {
 	images: readonly ImageContent[];
 	text: string;
 	isPending?: boolean;
+	timestamp?: number;
 };
 
-export function UserMessage({ images, isPending = false, text }: UserMessageProps) {
+export function UserMessage({ images, isPending = false, text, timestamp }: UserMessageProps): ReactElement | null {
 	if (images.length === 0 && text.trim() === "") {
 		return null;
 	}
@@ -23,6 +26,7 @@ export function UserMessage({ images, isPending = false, text }: UserMessageProp
 				{images.length > 0 ? <UserMessageImages images={images} /> : null}
 				{text ? <MarkdownContent inverted>{text}</MarkdownContent> : null}
 			</div>
+			<UserFoot text={text} timestamp={timestamp} />
 		</article>
 	);
 }
@@ -64,5 +68,19 @@ function UserMessageImages({ images }: UserMessageImagesProps): ReactElement {
 				onActiveIndexChange={setActivePreviewIndex}
 			/>
 		</>
+	);
+}
+
+function UserFoot({ text, timestamp }: { text: string; timestamp?: number }): ReactElement {
+	return (
+		<div className="mt-1 pl-1 flex flex-wrap items-center justify-between text-xs text-muted-foreground">
+			<MessageTimestamp timestamp={timestamp} />
+			<div className="flex items-center gap-1">
+				<CopyButton content={text} disabled={!text} noun="消息" />
+				<Button aria-label="编辑消息" disabled size="icon-xs" title="暂不支持编辑消息" type="button" variant="ghost">
+					<Pencil aria-hidden />
+				</Button>
+			</div>
+		</div>
 	);
 }

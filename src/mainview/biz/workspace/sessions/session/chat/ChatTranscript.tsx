@@ -76,7 +76,7 @@ function ConversationRenderItem({ isLive, item }: {
 }): ReactElement {
 	switch (item.type) {
 		case "user":
-			return <UserMessage images={item.images} text={item.text} />;
+			return <UserMessage images={item.images} text={item.text} timestamp={item.message.timestamp} />
 		case "assistant":
 			return <AssistantMessage text={item.text} thinking={item.thinking} timestamp={item.message.timestamp} usage={item.message.usage} />;
 		case "system":
