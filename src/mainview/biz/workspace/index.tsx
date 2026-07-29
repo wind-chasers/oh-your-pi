@@ -1,6 +1,6 @@
 import { type ReactElement, useEffect, useState } from "react";
 import { SelectedSessionAtom, WorkspaceAtom } from "@view/states/current.atom";
-
+import { WorkspaceAttr } from "./WorkspaceAttr";
 import { SessionChat } from "./sessions/session";
 import { FilePreview } from "./files/FilePreview";
 import { WorkspaceFileExplorer } from "./files/WorkspaceFileExplorer";
@@ -9,6 +9,19 @@ import { SessionList } from "./sessions/SessionList";
 import { WorkspaceAlerts } from "./WorkspaceAlerts";
 import { WorkspacePlaceholder, WorkspaceReady } from "./WorkspaceEmptyState";
 
+function SidePannel(props: {
+	fileTreeOpen: boolean;
+}) {
+	const { fileTreeOpen } = props;
+	if (fileTreeOpen) return null;
+
+	return (
+		<div className="flex min-h-0 w-65 flex-col border-r bg-muted/20">
+			<SessionList />
+			<WorkspaceAttr />
+		</div>
+	);
+}
 
 export function WorkspacePage(): ReactElement {
 	const snapshot = WorkspaceAtom.useData();
@@ -34,7 +47,7 @@ export function WorkspacePage(): ReactElement {
 		>
 			<WorkspaceAlerts />
 			<div className="flex min-h-0 flex-1 overflow-hidden">
-				{!fileTreeOpen && <SessionList />}
+				<SidePannel fileTreeOpen={fileTreeOpen} />
 				<div className="min-w-0 flex-1 overflow-hidden">
 					{selectedSession?.workspacePath === snapshot.workspacePath ? (
 						<SessionChat

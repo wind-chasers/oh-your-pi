@@ -37,7 +37,7 @@ export function SessionList(): ReactElement {
 	return (
 		<aside
 			aria-label="会话列表"
-			className="flex min-h-0 w-65 flex-col border-r bg-muted/20"
+			className="min-h-0 flex-1 flex flex-col"
 		>
 			<div className="flex items-center justify-between gap-2 border-b px-3 h-10">
 				<div className="min-w-0">

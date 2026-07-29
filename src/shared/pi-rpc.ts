@@ -38,8 +38,8 @@ export interface PiRpcSchema extends ElectrobunRPCSchema {
 			refreshWorkspaceResources: { params: PiWorkspaceRequest; response: PiWorkspaceRefreshResult };
 			chooseWorkspace: { params: Record<string, never>; response: PiWorkspacePickerResult };
 			chooseImageAttachments: { params: Record<string, never>; response: PiImageAttachment[] };
-				listWorkspaceFiles: { params: PiWorkspaceFileRequest; response: PiWorkspaceFile[] };
-				readWorkspaceFile: { params: PiWorkspaceFileRequest; response: PiWorkspaceFileContent };
+			listWorkspaceFiles: { params: PiWorkspaceFileRequest; response: PiWorkspaceFile[] };
+			readWorkspaceFile: { params: PiWorkspaceFileRequest; response: PiWorkspaceFileContent };
 			readSessionTranscript: { params: PiSessionTranscriptRequest; response: PiSessionTranscript };
 			openSession: { params: PiSessionTranscriptRequest; response: PiOpenedSession };
 			createSession: { params: PiWorkspaceRequest; response: PiOpenedSession };
