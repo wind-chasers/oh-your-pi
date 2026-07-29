@@ -78,7 +78,7 @@ function ConversationRenderItem({ isLive, item }: {
 		case "user":
 			return <UserMessage images={item.images} text={item.text} />;
 		case "assistant":
-			return <AssistantMessage text={item.text} thinking={item.thinking} />;
+			return <AssistantMessage text={item.text} thinking={item.thinking} timestamp={item.message.timestamp} usage={item.message.usage} />;
 		case "system":
 			return <SystemMessage text={item.text} />;
 		case "bash":
