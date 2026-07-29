@@ -96,6 +96,12 @@ export type PiSessionTranscriptRequest = {
 	sessionPath: string;
 };
 
+export type PiSessionRenameRequest = PiSessionTranscriptRequest & {
+	name: string;
+};
+
+export type PiSessionDeleteRequest = PiSessionTranscriptRequest;
+
 export type PiSessionCommand = {
 	sessionPath: string;
 	text: string;
@@ -240,6 +246,11 @@ export type PiSessionRuntimeState = {
 export type PiOpenedSession = {
 	runtime: PiSessionRuntimeState;
 	transcript: PiSessionTranscript;
+};
+
+export type PiSessionRenameResult = {
+	session: PiSessionSummary;
+	openedSession?: PiOpenedSession;
 };
 
 export type PiWorkspaceRefreshResult = {

@@ -8,12 +8,15 @@ import type {
 	PiOpenedSession,
 	PiImageAttachment,
 	PiSessionAbortRequest,
+	PiSessionDeleteRequest,
 	PiSessionCommand,
 	PiSessionEvent,
 	PiSessionModelRequest,
 	PiSessionRuntimeState,
 	PiSessionThinkingRequest,
 	PiSessionTranscript,
+	PiSessionRenameRequest,
+	PiSessionRenameResult,
 	PiSessionTranscriptRequest,
 	PiWorkspacePickerResult,
 	PiWorkspaceRequest,
@@ -116,6 +119,14 @@ export async function readPiWorkspaceFile(request: PiWorkspaceFileRequest): Prom
 
 export async function readPiSessionTranscript(request: PiSessionTranscriptRequest): Promise<PiSessionTranscript> {
 	return rpc.request.readSessionTranscript(request);
+}
+
+export async function renamePiSession(request: PiSessionRenameRequest): Promise<PiSessionRenameResult> {
+	return rpc.request.renameSession(request);
+}
+
+export async function deletePiSession(request: PiSessionDeleteRequest): Promise<void> {
+	return rpc.request.deleteSession(request);
 }
 
 

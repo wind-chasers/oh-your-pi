@@ -1,6 +1,7 @@
 import type {
 	PiOpenedSession,
 	PiImageAttachment,
+	PiSessionDeleteRequest,
 	PiSessionAbortRequest,
 	PiSessionCommand,
 	PiSessionEvent as AppSessionEvent,
@@ -9,6 +10,8 @@ import type {
 	PiSessionSummary,
 	PiSessionThinkingRequest,
 	PiSessionTranscript,
+	PiSessionRenameRequest,
+	PiSessionRenameResult,
 	PiSessionTranscriptRequest,
 	PiToolPermissionRequest,
 	PiToolPermissionResolution,
@@ -73,6 +76,19 @@ export class SessionApplication {
 		const session = await workspace.continueRecentSession(this.createSessionHooks());
 		this.attachSession(session);
 		return session.getSnapshot();
+	}
+
+	async rename(input: PiSessionRenameRequest): Promise<PiSessionRenameResult> {
+		const name = input.name.trim();
+		if (!name) throw new Error("会话名称不能为空。");
+		const workspace = await this.pi.openWorkspace(input.workspacePath);
+		return workspace.renameSession(input.sessionPath, name);
+	}
+
+	async delete(input: PiSessionDeleteRequest): Promise<void> {
+		const workspace = await this.pi.openWorkspace(input.workspacePath);
+		const sessionPath = await workspace.deleteSession(input.sessionPath);
+		this.detachSession(sessionPath);
 	}
 
 	async inspectImageAttachments(paths: readonly string[]): Promise<PiImageAttachment[]> {
@@ -176,6 +192,13 @@ export class SessionApplication {
 
 	private emit(event: AppSessionEvent): void {
 		for (const listener of this.listeners) listener(event);
+	}
+
+	private detachSession(sessionPath: string): void {
+		this.sessionSubscriptions.get(sessionPath)?.();
+		this.sessionSubscriptions.delete(sessionPath);
+		this.permissions.resetSession(sessionPath);
+		this.recovery.clear(sessionPath);
 	}
 
 	private requireIdle(session: PiSession): void {

@@ -2,7 +2,7 @@ import type { PiSessionSummary } from "@shared/pi-contract";
 import { mutate } from "@view/atom";
 import type { UseAtom } from "@view/atom";
 import { chatStore, type ChatSession } from "@view/chat-store";
-import { inspectPiWorkspace } from "@view/lib/pi-client";
+import { deletePiSession, inspectPiWorkspace, renamePiSession } from "@view/lib/pi-client";
 import { WorkspaceBusyAtom, WorkspaceErrorAtom } from "./activity.atom";
 import { SelectedSessionAtom, WorkspaceAtom } from "./current.atom";
 import type { SelectedChatSession } from "./current.atom";
@@ -38,6 +38,76 @@ export const CreateSessionMutation = mutate((use) =>
 export const ContinueRecentSessionMutation = mutate((use) =>
 	async function continueRecentSession(): Promise<void> {
 		await createAndSelect(use, (workspacePath) => chatStore.continueRecentSession(workspacePath));
+	},
+);
+
+export const RenameSessionMutation = mutate((use) =>
+	async function renameSession(summary: PiSessionSummary, name: string): Promise<void> {
+		const [workspace, setWorkspace] = use(WorkspaceAtom);
+		if (!workspace) return;
+		const workspacePath = workspace.workspacePath;
+		const [, setError] = use(WorkspaceErrorAtom);
+		const [, setBusy] = use(WorkspaceBusyAtom);
+		setError(undefined);
+		setBusy(true);
+		try {
+			const result = await renamePiSession({
+				workspacePath,
+				sessionPath: summary.path,
+				name,
+			});
+			if (use(WorkspaceAtom)[0]?.workspacePath === workspacePath) {
+				setWorkspace((current) => {
+					if (!current || current.workspacePath !== workspacePath) return current;
+					return {
+						...current,
+						sessions: current.sessions.map((session) =>
+							session.id === summary.id ? result.session : session,
+						),
+					};
+				});
+			}
+			if (result.openedSession) {
+				chatStore.getSession(workspacePath, summary.id)?.hydrate(result.openedSession);
+			}
+		} catch (requestError) {
+			setError(toErrorMessage(requestError, "无法重命名 Pi 会话。"));
+		} finally {
+			setBusy(false);
+		}
+	},
+);
+
+export const DeleteSessionMutation = mutate((use) =>
+	async function deleteSession(summary: PiSessionSummary): Promise<void> {
+		const [workspace, setWorkspace] = use(WorkspaceAtom);
+		if (!workspace) return;
+		const workspacePath = workspace.workspacePath;
+		const [, setSelectedSession] = use(SelectedSessionAtom);
+		const [, setError] = use(WorkspaceErrorAtom);
+		const [, setBusy] = use(WorkspaceBusyAtom);
+		setError(undefined);
+		setBusy(true);
+		try {
+			await deletePiSession({ workspacePath, sessionPath: summary.path });
+			chatStore.removeSession(workspacePath, summary.id);
+			if (use(WorkspaceAtom)[0]?.workspacePath === workspacePath) {
+				setWorkspace((current) => {
+					if (!current || current.workspacePath !== workspacePath) return current;
+					return {
+						...current,
+						sessions: current.sessions.filter((session) => session.id !== summary.id),
+					};
+				});
+				setSelectedSession((current) =>
+					current?.sessionId === summary.id ? undefined : current,
+				);
+			}
+		} catch (requestError) {
+			setError(toErrorMessage(requestError, "无法删除 Pi 会话。"));
+		} finally {
+			setBusy(false);
+		}
 	},
 );
 

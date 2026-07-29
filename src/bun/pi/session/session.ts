@@ -81,6 +81,10 @@ export class PiSession {
 		this.requireAgentSession().setThinkingLevel(level);
 	}
 
+	setName(name: string): void {
+		this.requireAgentSession().setSessionName(name);
+	}
+
 	async prompt(text: string, imageSources: readonly PiImageAttachmentSource[] = []): Promise<void> {
 		const session = this.requireAgentSession();
 		const images = await this.prepareImages(imageSources);

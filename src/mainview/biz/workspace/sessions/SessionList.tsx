@@ -1,14 +1,16 @@
 import { Plus } from "lucide-react";
 import { type ReactElement, useMemo, useState } from "react";
-import type { PiSessionSummary } from "@shared/pi-contract";
 import { Button } from "@view/components/ui/button";
 import { AppDisabledAtom } from "@view/states/activity.atom";
 import { SelectedSessionAtom, WorkspaceAtom } from "@view/states/current.atom";
 import {
 	ContinueRecentSessionMutation,
 	CreateSessionMutation,
+	DeleteSessionMutation,
+	RenameSessionMutation,
 	SelectSessionMutation,
 } from "@view/states/session";
+import { SessionListItem } from "./SessionListItem";
 
 
 export function SessionList(): ReactElement {
@@ -18,6 +20,8 @@ export function SessionList(): ReactElement {
 	const continueRecentSession = ContinueRecentSessionMutation.use();
 	const createSession = CreateSessionMutation.use();
 	const selectSession = SelectSessionMutation.use();
+	const deleteSession = DeleteSessionMutation.use();
+	const renameSession = RenameSessionMutation.use();
 	const [query, setQuery] = useState("");
 	const visibleSessions = useMemo(() => {
 		const normalizedQuery = query.trim().toLocaleLowerCase();
@@ -77,6 +81,8 @@ export function SessionList(): ReactElement {
 						isSelected={selectedSession?.sessionId === session.id}
 						key={session.id}
 						onSelect={selectSession}
+						onDelete={deleteSession}
+						onRename={renameSession}
 						session={session}
 					/>
 				))}
@@ -92,35 +98,6 @@ export function SessionList(): ReactElement {
 	);
 }
 
-function SessionListItem({
-	disabled,
-	isSelected,
-	onSelect,
-	session,
-}: {
-	disabled: boolean;
-	isSelected: boolean;
-	onSelect: (session: PiSessionSummary) => Promise<void>;
-	session: PiSessionSummary;
-}): ReactElement {
-	const title = session.name || session.firstMessage || "未命名会话";
-	return (
-		<button
-			aria-current={isSelected ? "page" : undefined}
-			className="mb-1 w-full rounded-md px-3 py-2 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 aria-[current=page]:bg-primary/10 aria-[current=page]:text-primary"
-			disabled={disabled}
-			onClick={() => void onSelect(session)}
-			title={title}
-			type="button"
-		>
-			<p className="truncate text-sm font-medium">{title}</p>
-			<p className="mt-1 truncate text-xs text-muted-foreground">
-				{session.messageCount} 条消息 ·{" "}
-				{new Date(session.modifiedAt).toLocaleDateString()}
-			</p>
-		</button>
-	);
-}
 
 function EmptySessionList({
 	disabled,

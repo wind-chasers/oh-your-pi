@@ -40,6 +40,13 @@ export class ChatWorkspace {
 		return this.sessions.get(sessionId);
 	}
 
+	public removeSession(sessionId: string): void {
+		const session = this.sessions.get(sessionId);
+		if (!session) return;
+		this.sessions.delete(sessionId);
+		session.dispose();
+	}
+
 	public getSessions(): readonly ChatSession[] {
 		return [...this.sessions.values()];
 	}

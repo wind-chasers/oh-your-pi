@@ -8,12 +8,15 @@ import type {
 	PiOpenedSession,
 	PiImageAttachment,
 	PiSessionAbortRequest,
+	PiSessionDeleteRequest,
 	PiSessionModelRequest,
 	PiSessionCommand,
 	PiSessionEvent,
 	PiSessionRuntimeState,
 	PiSessionThinkingRequest,
 	PiSessionTranscript,
+	PiSessionRenameRequest,
+	PiSessionRenameResult,
 	PiSessionTranscriptRequest,
 	PiWorkspacePickerResult,
 	PiWorkspaceRequest,
@@ -47,6 +50,8 @@ export interface PiRpcSchema extends ElectrobunRPCSchema {
 			switchWorkspaceGitBranch: { params: PiWorkspaceGitBranchRequest; response: PiWorkspaceGit };
 			readSessionTranscript: { params: PiSessionTranscriptRequest; response: PiSessionTranscript };
 			openSession: { params: PiSessionTranscriptRequest; response: PiOpenedSession };
+			renameSession: { params: PiSessionRenameRequest; response: PiSessionRenameResult };
+			deleteSession: { params: PiSessionDeleteRequest; response: void };
 			createSession: { params: PiWorkspaceRequest; response: PiOpenedSession };
 			continueRecentSession: { params: PiWorkspaceRequest; response: PiOpenedSession };
 			setSessionModel: { params: PiSessionModelRequest; response: PiOpenedSession };

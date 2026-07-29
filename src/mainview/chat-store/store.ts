@@ -60,6 +60,10 @@ export class ChatStore {
 		return this.workspaces.get(workspacePath)?.getSession(sessionId);
 	}
 
+	public removeSession(workspacePath: string, sessionId: string): void {
+		this.workspaces.get(workspacePath)?.removeSession(sessionId);
+	}
+
 	public openSession(
 		workspacePath: string,
 		sessionId: string,

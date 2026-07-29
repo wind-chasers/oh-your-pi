@@ -37,6 +37,8 @@ export function createPiRpc(options: { app: Application; desktop: DesktopSystem 
 				openSession: (input) => app.session.open(input),
 				createSession: (input) => app.session.create(input),
 				continueRecentSession: (input) => app.session.continueRecent(input),
+				renameSession: (input) => app.session.rename(input),
+				deleteSession: (input) => app.session.delete(input),
 				setSessionModel: (input) => app.session.setModel(input),
 				setSessionThinking: (input) => app.session.setThinking(input),
 				promptSession: (input) => app.session.prompt(input),

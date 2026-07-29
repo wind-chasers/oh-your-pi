@@ -10,6 +10,7 @@ import type {
 	PiResourceDiagnostic,
 	PiResourceItem,
 	PiSessionSummary,
+	PiOpenedSession,
 	PiSessionTranscript,
 } from "@shared/pi-contract";
 import { PiSessionRegistry } from "./session/registry";
@@ -101,6 +102,27 @@ export class PiWorkspace {
 			session: toPiSessionSummary(info),
 			messages: toPiSessionMessages(messages),
 		};
+	}
+
+	async renameSession(sessionPath: string, name: string): Promise<{
+		session: PiSessionSummary;
+		openedSession?: PiOpenedSession;
+	}> {
+		const info = await this.findSession(sessionPath);
+		const openedSession = this.sessions.find(info.path);
+		if (openedSession) {
+			openedSession.setName(name);
+			const snapshot = openedSession.getSnapshot();
+			return { session: snapshot.transcript.session, openedSession: snapshot };
+		}
+		SessionManager.open(info.path).appendSessionInfo(name);
+		return { session: toPiSessionSummary(await this.findSession(info.path)) };
+	}
+
+	async deleteSession(sessionPath: string): Promise<string> {
+		const info = await this.findSession(sessionPath);
+		await this.sessions.delete(info.path);
+		return info.path;
 	}
 
 	async openSession(sessionPath: string, hooks: PiSessionHooks): Promise<PiSession> {
