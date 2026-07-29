@@ -13,6 +13,7 @@ type SyntaxHighlightedCodeProps = {
 	children: string;
 	className?: string;
 	enabled?: boolean;
+	inverted?: boolean;
 	language?: string;
 	showLineNumbers?: boolean;
 };
@@ -30,6 +31,7 @@ export const SyntaxHighlightedCode = memo(function SyntaxHighlightedCode({
 	children,
 	className,
 	enabled = true,
+	inverted = false,
 	language,
 	showLineNumbers = false,
 }: SyntaxHighlightedCodeProps): ReactElement {
@@ -67,7 +69,7 @@ export const SyntaxHighlightedCode = memo(function SyntaxHighlightedCode({
 
 	return (
 		<code
-			className={cn(className, (highlighted || lines) && "syntax-highlighted-code")}
+			className={cn(className, (highlighted || lines) && "syntax-highlighted-code", inverted && "syntax-highlighted-code-inverted")}
 			data-language={resolvedLanguage}
 			style={lineNumberStyle}
 		>

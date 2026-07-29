@@ -14,6 +14,7 @@ type MermaidRenderState =
 
 type MermaidDiagramProps = {
 	code: string;
+	inverted?: boolean;
 	viewport?: MermaidViewport;
 };
 
@@ -25,13 +26,14 @@ type PanStart = MermaidOffset & {
 
 const DEFAULT_OFFSET: MermaidOffset = { x: 0, y: 0 };
 
-export function MermaidDiagram({ code, viewport }: MermaidDiagramProps): ReactElement {
+export function MermaidDiagram({ code, inverted = false, viewport }: MermaidDiagramProps): ReactElement {
 	const instanceId = useId().replace(/[^a-zA-Z0-9_-]/g, "-");
 	const canvasRef = useRef<HTMLDivElement | null>(null);
 	const panStartRef = useRef<PanStart | undefined>(undefined);
 	const liveOffsetRef = useRef<MermaidOffset>(DEFAULT_OFFSET);
 	const [dark, setDark] = useState(() => typeof document !== "undefined" && document.documentElement.classList.contains("dark"));
 	const [renderState, setRenderState] = useState<MermaidRenderState>({ status: "loading" });
+	const renderDark = inverted ? !dark : dark;
 
 	useEffect(() => {
 		const root = document.documentElement;
@@ -48,7 +50,7 @@ export function MermaidDiagram({ code, viewport }: MermaidDiagramProps): ReactEl
 		setRenderState({ status: "loading" });
 		const task = limiter.run(async (signal) => {
 			try {
-				const svg = await renderMermaidDiagram(`mermaid-${instanceId}`, code, dark, signal);
+				const svg = await renderMermaidDiagram(`mermaid-${instanceId}`, code, renderDark, signal);
 				if (signal.aborted) return;
 				setRenderState({ status: "rendered", svg });
 			} catch (error) {
@@ -59,7 +61,7 @@ export function MermaidDiagram({ code, viewport }: MermaidDiagramProps): ReactEl
 
 		task.catch(NOOP);
 		return () => { task.cancel() };
-	}, [code, dark, instanceId]);
+	}, [code, instanceId, renderDark]);
 
 	const offset = viewport?.offset ?? DEFAULT_OFFSET;
 	const scale = viewport?.scale ?? 1;

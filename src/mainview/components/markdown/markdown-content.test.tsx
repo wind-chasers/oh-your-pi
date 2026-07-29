@@ -3,9 +3,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { TooltipProvider } from "@view/components/ui/tooltip";
 import { MarkdownContent } from "./markdown-content";
 
-function renderMarkdown(markdown: string, { stable = true }: { stable?: boolean } = {}): string {
+function renderMarkdown(markdown: string, { inverted = false, stable = true }: { inverted?: boolean; stable?: boolean } = {}): string {
 	return renderToStaticMarkup(
-		<TooltipProvider><MarkdownContent stable={stable}>{markdown}</MarkdownContent></TooltipProvider>,
+		<TooltipProvider><MarkdownContent inverted={inverted} stable={stable}>{markdown}</MarkdownContent></TooltipProvider>,
 	);
 }
 
@@ -37,6 +37,13 @@ describe("MarkdownContent", () => {
 		expect(inline).toContain("<code>const value = 1</code>");
 		expect(inline).not.toContain('data-slot="markdown-code-header"');
 		expect(inline).not.toContain("data-language=");
+	});
+
+	test("marks inverted code blocks for local dark/light theme reversal", () => {
+		const html = renderMarkdown("```ts\nconst answer = 42;\n```", { inverted: true });
+
+		expect(html).toContain('data-inverted="true"');
+		expect(html).toContain("syntax-highlighted-code-inverted");
 	});
 
 	test("renders Mermaid diagrams regardless of Markdown stability", () => {

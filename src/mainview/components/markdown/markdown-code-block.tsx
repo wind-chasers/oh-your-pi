@@ -18,6 +18,7 @@ type CopyStatus = "idle" | "copied" | "failed";
 type MarkdownPreProps = ComponentPropsWithoutRef<"pre"> & { node?: unknown };
 type MarkdownCodeBlockProps = {
 	code: string;
+	inverted?: boolean;
 	language?: string;
 	preProps: MarkdownPreProps;
 	stable?: boolean;
@@ -37,13 +38,14 @@ type MarkdownCodeHeaderProps = {
 
 type MermaidCodeBlockProps = {
 	code: string;
+	inverted?: boolean;
 	preProps: MarkdownPreProps;
 	children?: ReactNode;
 };
 
 type MermaidView = "code" | "diagram";
 
-export function CodeBlock({ code, language, stable, preProps, className }: MarkdownCodeBlockProps): ReactElement {
+export function CodeBlock({ code, inverted, language, stable, preProps, className }: MarkdownCodeBlockProps): ReactElement {
 	return (
 		<div className="markdown-code-block">
 			<MarkdownCodeHeader code={code} languageLabel={getLanguageLabel(language)} />
@@ -51,6 +53,7 @@ export function CodeBlock({ code, language, stable, preProps, className }: Markd
 				<SyntaxHighlightedCode
 					className={className}
 					enabled={stable}
+					inverted={inverted}
 					language={language}
 					showLineNumbers
 				>
@@ -61,7 +64,7 @@ export function CodeBlock({ code, language, stable, preProps, className }: Markd
 	);
 }
 
-export function MermaidBlock({ code, children, preProps }: MermaidCodeBlockProps): ReactElement {
+export function MermaidBlock({ code, children, inverted, preProps }: MermaidCodeBlockProps): ReactElement {
 	const [view, setView] = useState<MermaidView>("diagram");
 	const isDiagram = view === "diagram";
 	const toggleLabel = isDiagram ? "查看 Mermaid 源码" : "查看 Mermaid 图表";
@@ -103,7 +106,7 @@ export function MermaidBlock({ code, children, preProps }: MermaidCodeBlockProps
 				languageLabel={getLanguageLabel('mermaid')}
 			/>
 			{isDiagram ? (
-				<MermaidDiagram code={code} viewport={viewport} />
+				<MermaidDiagram code={code} inverted={inverted} viewport={viewport} />
 			) : (
 				<pre {...preProps}>{children}</pre>
 			)}

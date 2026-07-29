@@ -8,29 +8,40 @@ import "./markdown-content.scss";
 type MarkdownContentProps = {
 	children: string;
 	className?: string;
+	inverted?: boolean;
 	stable?: boolean;
 };
 
 type MarkdownLinkProps = ComponentPropsWithoutRef<"a"> & { node?: unknown };
 type MarkdownImageProps = ComponentPropsWithoutRef<"img"> & { node?: unknown };
 type MarkdownTableProps = ComponentPropsWithoutRef<"table"> & { node?: unknown };
-const stableMarkdownComponents = createMarkdownComponents(true);
-const unStableMarkdownComponents = createMarkdownComponents(false);
+const stableMarkdownComponents = createMarkdownComponents(true, false);
+const unstableMarkdownComponents = createMarkdownComponents(false, false);
+const invertedStableMarkdownComponents = createMarkdownComponents(true, true);
+const invertedUnstableMarkdownComponents = createMarkdownComponents(false, true);
 
 export const MarkdownContent = memo(function MarkdownContent({
 	children,
 	className,
+	inverted = false,
 	stable = true,
 }: MarkdownContentProps): ReactElement {
-	const components = stable ? stableMarkdownComponents : unStableMarkdownComponents;
+	const components = getMarkdownComponents(stable, inverted);
 	return (
-		<div className={cn("markdown-content", className)}>
+		<div className={cn("markdown-content", className)} data-inverted={inverted || undefined}>
 			<ReactMarkdown components={components} remarkPlugins={[remarkGfm]}>
 				{children}
 			</ReactMarkdown>
 		</div>
 	);
 });
+
+function getMarkdownComponents(stable: boolean, inverted: boolean): Components {
+	if (inverted) {
+		return stable ? invertedStableMarkdownComponents : invertedUnstableMarkdownComponents;
+	}
+	return stable ? stableMarkdownComponents : unstableMarkdownComponents;
+}
 
 function useCode(content: React.ReactNode) {
 	if (isValidElement<ComponentPropsWithoutRef<"code">>(content) && content.type === "code") {
@@ -42,7 +53,7 @@ function useCode(content: React.ReactNode) {
 	}
 }
 
-function createMarkdownComponents(stable: boolean): Components {
+function createMarkdownComponents(stable: boolean, inverted: boolean): Components {
 	return {
 		a: MarkdownLink,
 		img: MarkdownImage,
@@ -52,8 +63,8 @@ function createMarkdownComponents(stable: boolean): Components {
 
 			const { code, language, isMermaid, className } = result;
 			return isMermaid
-				? <MermaidBlock code={code} preProps={props}>{children}</MermaidBlock>
-				: <CodeBlock code={code} language={language} preProps={props} stable={stable} className={className} />;
+				? <MermaidBlock code={code} inverted={inverted} preProps={props}>{children}</MermaidBlock>
+				: <CodeBlock className={className} code={code} inverted={inverted} language={language} preProps={props} stable={stable} />;
 		},
 		table: MarkdownTable,
 	};

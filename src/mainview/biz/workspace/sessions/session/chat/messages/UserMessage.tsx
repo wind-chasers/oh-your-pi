@@ -21,7 +21,7 @@ export function UserMessage({ images, isPending = false, text }: UserMessageProp
 			<div className="flex flex-col gap-2 rounded-2xl rounded-br-md bg-primary px-3 py-2 text-sm text-primary-foreground shadow-sm">
 				{isPending ? <p className="text-xs font-medium text-primary-foreground/70">已发送</p> : null}
 				{images.length > 0 ? <UserMessageImages images={images} /> : null}
-				{text ? <MarkdownContent>{text}</MarkdownContent> : null}
+				{text ? <MarkdownContent inverted>{text}</MarkdownContent> : null}
 			</div>
 		</article>
 	);
