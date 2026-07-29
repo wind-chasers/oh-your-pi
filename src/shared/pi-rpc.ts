@@ -11,7 +11,9 @@ import type {
 	PiSessionDeleteRequest,
 	PiSessionModelRequest,
 	PiSessionCommand,
+	PiQueuedSessionCommand,
 	PiSessionEvent,
+	PiSessionRegenerateRequest,
 	PiSessionRuntimeState,
 	PiSessionThinkingRequest,
 	PiSessionTranscript,
@@ -54,11 +56,12 @@ export interface PiRpcSchema extends ElectrobunRPCSchema {
 			deleteSession: { params: PiSessionDeleteRequest; response: void };
 			createSession: { params: PiWorkspaceRequest; response: PiOpenedSession };
 			continueRecentSession: { params: PiWorkspaceRequest; response: PiOpenedSession };
-			setSessionModel: { params: PiSessionModelRequest; response: PiOpenedSession };
-			setSessionThinking: { params: PiSessionThinkingRequest; response: PiOpenedSession };
+			setSessionModel: { params: PiSessionModelRequest; response: PiSessionRuntimeState };
+			setSessionThinking: { params: PiSessionThinkingRequest; response: PiSessionRuntimeState };
 			promptSession: { params: PiSessionCommand; response: PiSessionRuntimeState };
-			steerSession: { params: PiSessionCommand; response: PiSessionRuntimeState };
-			followUpSession: { params: PiSessionCommand; response: PiSessionRuntimeState };
+			regenerateSessionMessage: { params: PiSessionRegenerateRequest; response: void };
+			steerSession: { params: PiQueuedSessionCommand; response: PiSessionRuntimeState };
+			followUpSession: { params: PiQueuedSessionCommand; response: PiSessionRuntimeState };
 			abortSession: { params: PiSessionAbortRequest; response: PiSessionRuntimeState };
 			respondToolPermission: { params: PiToolPermissionResponse; response: PiToolPermissionResolution };
 		};

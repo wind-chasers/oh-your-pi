@@ -17,7 +17,7 @@ import { PiSessionRegistry } from "./session/registry";
 import {
 	PiSession,
 	type PiSessionHooks,
-	toPiSessionMessages,
+	toPiSessionTranscriptEntries,
 	toPiSessionSummary,
 } from "./session";
 
@@ -97,10 +97,10 @@ export class PiWorkspace {
 
 	async readSession(sessionPath: string): Promise<PiSessionTranscript> {
 		const info = await this.findSession(sessionPath);
-		const messages = SessionManager.open(info.path).buildSessionContext().messages;
+		const manager = SessionManager.open(info.path);
 		return {
 			session: toPiSessionSummary(info),
-			messages: toPiSessionMessages(messages),
+			entries: toPiSessionTranscriptEntries(manager.buildContextEntries()),
 		};
 	}
 

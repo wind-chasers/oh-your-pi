@@ -1,5 +1,5 @@
-import { type ReactElement } from "react";
-import type { PiOpenedSession, PiSessionMessage } from "@shared/pi-contract";
+import { type ReactElement, useMemo } from "react";
+import type { PiOpenedSession, PiSessionTranscriptEntry } from "@shared/pi-contract";
 import {
 	HoverCard,
 	HoverCardContent,
@@ -25,8 +25,9 @@ export function ContextBadge({
 }: ContextBadgeProps): ReactElement | null {
 	const model = openedSession.runtime.model;
 	const contextWindow = model?.contextWindow ?? 0;
-	const { latest: usage, cumulative } = collectUsage(
-		openedSession.transcript.messages,
+	const { latest: usage, cumulative } = useMemo(
+		() => collectUsage(openedSession.transcript.entries),
+		[openedSession.transcript.entries],
 	);
 	const contextTokens = usage?.totalTokens ?? 0;
 
@@ -131,7 +132,7 @@ export function ContextBadge({
 	);
 }
 
-function collectUsage(messages: PiSessionMessage[]): {
+function collectUsage(entries: PiSessionTranscriptEntry[]): {
 	latest: ContextUsage | null;
 	cumulative: ContextUsage;
 } {
@@ -143,10 +144,8 @@ function collectUsage(messages: PiSessionMessage[]): {
 		totalTokens: 0,
 	};
 	let latest: ContextUsage | null = null;
-	for (const message of messages) {
-		if (message.role !== "assistant") {
-			continue;
-		}
+	for (const { message } of entries) {
+		if (message.role !== "assistant") continue;
 		const { input, output, cacheRead, cacheWrite, totalTokens } = message.usage;
 		cumulative.input += input;
 		cumulative.output += output;

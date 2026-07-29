@@ -32,6 +32,8 @@ sequenceDiagram
 
 只有 `prompt` 在发送前解析 provider 认证并开启恢复窗口。`steer`、`followUp` 和 `abort` 作用于已经打开的 session，保留 Pi 原生语义。模型和 thinking 只能在 session idle 时修改。
 
+历史消息编辑走 `regenerate(sessionPath, entryId, text, images?)`：只允许 idle session，复用 `prompt` 的 provider 认证与恢复窗口，再由 Pi 边界完成原生树导航和 prompt 提交。Application 不直接改 JSONL、不复制 session tree，也不把“编辑”实现为覆盖原消息。
+
 原生文件选择由主进程返回规范化路径和受限预览；textarea 粘贴直接由 Web Clipboard API 读取二进制图片，因此不要求图片具有系统路径。发送时两者统一为 `PiImageAttachmentSource`：路径源由主进程重新读取，data 源通过 RPC 传递原始 base64。Pi 边界不能信任 Renderer 提供的 MIME、名称、尺寸或预览，必须重新限制大小、解码、检查像素并编码。
 
 ## Session subscription
@@ -45,10 +47,10 @@ application event 必须携带所属 `sessionPath`。RPC 和 Renderer 依靠该�
 - assistant `text_delta` / `thinking_delta` 只保留 SDK 的 `type + delta`。
 - `tool_execution_start` / `tool_execution_end` 保留 SDK 事件名、tool call ID、名称和最终错误状态，不复制 args、partial result 或 result。
 - `agent_start` / `agent_settled` 保留 SDK 生命周期名；Renderer 未消费的中间事件不进入 wire contract。
+- `transcript_entries_appended` 直接转发新持久 entry；`transcript_rebased` 转发公共前缀位置与变化 tail；两者同时携带总 entry 数、首消息、更新时间和 queued input 的 `clientId ↔ entryId` 确认。`queued_inputs_cleared` 精确转发 abort/recovery 清理的 client IDs。Application 不重复构造 transcript 或队列关联。
 - 内部 `Error` 和 assistant 最终失败只投影为 `errorMessage`，不能跨进程传递对象。
-- `agent_settled` 是一轮运行真正稳定、允许 Renderer 刷新完整 transcript 的信号。
 
-持久 transcript 已由 Pi 边界从 `AgentSession.messages` 构造为共享线性消息列表，Application 直接转发，不再维护 snapshot adapter。工具调用与 tool result 的视觉配对只属于 Renderer `SessionView`。
+`agent_settled` 只表示运行稳定，不再触发 Renderer 全量读取 session 文件。普通轮次由 committed entry 增量收敛；完整 transcript 只用于首次打开、显式恢复或 rebase。
 
 新增 SDK event 时先判断 Renderer 是否存在可观察需求；需要转发时复用 SDK 名称和字段，并在本文件完成唯一一次裁剪。
 

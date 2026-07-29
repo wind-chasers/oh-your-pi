@@ -76,7 +76,7 @@ flowchart LR
 
 ## 附件状态不变量
 
-- 待发送附件与 draft 都属于 `ChatComposer` 的纯 UI state，不进入 Chat Store；发送成功后一起清空，失败时保留供重试。
+- 未发送附件与 draft 属于 `ChatComposer` 的纯 UI state；提交后 Chat Store 只短暂保存不含 source/base64 原图的预览信息，发送失败时 Composer 保留原附件供重试。
 - 每条消息最多 8 张图片。
 - 单个源最多 64 MiB、最多 1 亿像素。
 - 原生路径按规范化 path 去重；内存图片按 attachment ID 区分，不对大体积 base64 做内容哈希。
@@ -90,8 +90,9 @@ flowchart LR
 - 当前模型必须声明 `input.includes("image")` 才启用附件按钮。
 - 如果选好图片后切换到不支持图像的模型，附件不会静默丢失，但发送会被禁用并显示恢复提示。
 - `canCompose` 取决于可用认证与模型；`canSend` 还要求附件不在处理中、存在文本或附件，且没有不受支持的附件。
-- idle 使用 `session.prompt(text, images)`；streaming 普通发送使用 `session.steer(text, images)`；显式“排队后续”使用 `session.followUp(text, images)`。
-- `ChatComposer` 只表达用户意图；命令校验、RPC error 和乐观流状态由 `ChatSession` 负责。
+- idle 使用 `session.prompt({ text, attachments })`；streaming 普通发送使用 `session.steer({ text, attachments })`；显式“排队后续”使用 `session.followUp({ text, attachments })`。
+- `ChatComposer` 只表达用户意图；命令校验、RPC error、optimistic tail 和运行中队列状态由 `ChatSession` 负责。
+- steer / follow-up 被 Pi 交付前显示在 Composer 上方的“待处理消息”列表；两类队列分开保存并固定先显示调整当前任务，再显示后续任务。
 
 ## 预览体验
 

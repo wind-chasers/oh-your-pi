@@ -25,7 +25,7 @@ mock.module("electrobun/view", () => ({
 (globalThis as { window?: unknown }).window = {};
 
 // Dynamic loading is required so the Electrobun mock is installed first.
-const [{ SessionChat }, { AuthenticationAtom }, { chatStore }] = await Promise.all([
+const [{ SessionChat, EditMessageProvider }, { AuthenticationAtom }, { chatStore }] = await Promise.all([
 	import(".."),
 	import("@view/states/authentication.atom"),
 	import("@view/chat-store"),
@@ -78,7 +78,7 @@ const openedSession: PiOpenedSession = {
 	},
 	transcript: {
 		session,
-		messages: [],
+		entries: [],
 	},
 };
 
@@ -144,7 +144,9 @@ function renderSessionChat(
 	return renderToStaticMarkup(
 		<TooltipProvider>
 			<WithStore>
-				<Fixture />
+				<EditMessageProvider>
+					<Fixture />
+				</EditMessageProvider>
 			</WithStore>
 		</TooltipProvider>
 	);
@@ -191,7 +193,11 @@ describe("SessionChat", () => {
 			...openedSession,
 			transcript: {
 				...openedSession.transcript,
-				messages: conversationMessages,
+				entries: conversationMessages.map((message, index) => ({
+					id: `entry-${index}`,
+					parentId: index === 0 ? null : `entry-${index - 1}`,
+					message,
+				})),
 			},
 		});
 

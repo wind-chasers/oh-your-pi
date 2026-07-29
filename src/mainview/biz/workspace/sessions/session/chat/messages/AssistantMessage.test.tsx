@@ -51,7 +51,7 @@ test("完成的回复显示元数据与复制操作", () => {
 
 	expect(html).toContain('dateTime="2026-07-29T07:35:00.000Z"');
 	expect(html).toContain("lucide-clock");
-	expect(html).toContain("lucide-log-in");
-	expect(html).toContain("lucide-log-out");
+	expect(html).toContain("lucide-cloud-upload");
+	expect(html).toContain("lucide-cloud-download");
 	expect(html).toContain('aria-label="复制回复"');
 });

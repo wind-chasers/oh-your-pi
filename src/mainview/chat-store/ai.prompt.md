@@ -35,8 +35,8 @@ flowchart LR
 - `index.ts`：公共出口和 React `useChatSession` 绑定。
 - `types.ts`：公开快照、临时工具状态、活动状态和配置类型。
 - `utils.ts`：无状态的身份校验、runtime 合并、依赖比较和输入校验。
-- `session.ts`：单个会话的稳定快照、主进程命令、加载与 transcript 刷新生命周期。
-- `session-stream.ts`：当前轮流式文本、thinking、临时工具、授权、事件 generation 和 hydrate 前事件队列。
+- `session.ts`：单个会话的稳定快照、主进程命令与加载生命周期。
+- `session-stream.ts`：当前轮流式文本、thinking、临时工具、授权和 hydrate 前事件队列。
 - `session-view.ts`：绑定一个 `ChatSession`，缓存 transcript 到 `SessionViewItem` 的渲染级转换结果。
 - `workspace.ts`：以 session ID 注册会话，负责本工作区的打开、创建、继续、事件分派和闲置淘汰。
 - `store.ts`：薄代理层；维护 workspace 集合、安装唯一全局订阅，并把 API 和事件转交给 workspace。
@@ -76,22 +76,24 @@ flowchart LR
 ### `ChatSession`
 
 - 持有稳定的 `ChatSessionSnapshot`，供 `useSyncExternalStore` 消费。
-- 负责加载、刷新、携带 `PiImageAttachmentSource[]` 的 prompt/steer/follow-up、abort、模型切换、thinking 切换和工具授权响应。
+- 负责加载、刷新、携带完整 `PiImageAttachment[]` UI 输入的 prompt/steer/follow-up、abort、模型切换、thinking 切换和工具授权响应；只有 attachment source 进入 RPC，snapshot 只保存轻量预览。
 - 持有 `SessionStream` 和 `SessionView`，但不自行实现它们内部的流归并或渲染计算。
-- `agent_settled` 后刷新持久 transcript；刷新完成前保留增量内容，防止界面空白闪烁。
+- committed user entry 到达时替换 optimistic prompt；queued user 只根据 Main 返回的 `confirmedInputs.clientId` 从对应队列精确移除，不按文本、数量或优先级猜测。assistant/tool result 在 settle 后以 entry batch 合并，不再每轮重新读取完整 transcript。
 
 ### `SessionStream`
 
 - 处理 `PiSessionEvent` 和 tool permission request。
-- 保存尚未进入持久 transcript 的文本、thinking、工具状态和授权队列。
-- 用 generation 隔离 settle refresh 与后来启动的新任务，旧刷新不能清掉新流。
+- `transient.tail` 用 discriminated union 保证 optimistic user 与 live agent 互斥；live agent 内聚文本、thinking、工具和授权请求。
+- `transient.queuedInputs.steering` 与 `followUps` 分别保存尚未交付的两类输入；transcript confirmation 和 `queued_inputs_cleared` 都按短 client ID 精确更新。
+- `transcript_entries_appended` 保留旧 entry 引用并追加 canonical tail；`transcript_rebased` 按 `replaceFrom` splice 变化 tail，公共前缀仍保持对象引用。
 - session hydrate 前到达的事件在这里有界排队，hydrate 后按原顺序重放。
 
 ### `SessionView`
 
 `SessionView` 只处理渲染级派生数据，不调用 RPC，也不拥有主进程状态：
 
-- `items` 按 transcript messages 对象身份缓存；会话切走再切回时直接复用。
+- `items` 按 transcript entry 数组身份缓存；append 时只重算最后一个 user turn，rebase 时从变化位置或受影响 tool section 开始重算，历史 ViewItem 保持引用。
+- 普通消息使用 session entry ID 作为 React key；`ConversationRenderItem` memo 后未变化的 Markdown/代码块不会因当前轮或另一分支尾部事件重复渲染。
 - 不生成空 assistant item；只有文本、thinking 或错误文本时才渲染 assistant。
 - 连续的 tool-call-only assistant messages 合并为一个 `tool-section` ViewItem。
 - tool result 与 tool call 在这里配对，组件不重复扫描线性消息列表。
@@ -107,9 +109,8 @@ flowchart LR
 - `sessionPath`：主进程当前定位路径，不作为内存索引。
 - `phase`：`idle | loading | ready | failed`，描述首次加载状态。
 - `openedSession`：持久 transcript 与 runtime 的最近快照。
-- `streamedText` / `thinkingText` / `tools`：尚未并入 transcript 的当前轮增量。
-- `pendingUserMessage`：prompt 已乐观提交、但尚未被 transcript 收录的用户消息。
-- `permissionRequests`：当前会话待处理授权，按到达顺序排列。
+- `transient.tail`：`empty | optimistic-user | live-agent`；optimistic user 携带文本与图片预览，live agent 携带阶段、文本、thinking、工具和授权请求。
+- `transient.queuedInputs`：`steering` 与 `followUps` 两条独立队列；每项区分 `submitting | queued`，client ID 使用 session 内短随机前缀加 base36 递增序号。
 - `isRefreshing` 与 `isSending`：后台拉取和命令请求状态。
 - `error`：最近一次加载、命令、事件或刷新失败。
 
@@ -136,7 +137,7 @@ useChatSession(workspacePath, sessionId, sessionPath)
 
 - hook 自动 acquire、打开、订阅并在卸载时 release；
 - 展示读取 `snapshot` 和 `session.view.items`；
-- 用户意图调用 `session.prompt(text, images)`、`session.steer(text, images)`、`session.followUp(text, images)`、`session.abort()` 等方法；
+- 用户意图调用 `session.prompt({ text, attachments })`、`session.steer({ text, attachments })`、`session.followUp({ text, attachments })`、`session.abort()` 等方法；
 - 组件不得直接调用 session RPC、订阅 session events 或重新计算 ViewItem。
 
 ## 关键不变量
@@ -148,3 +149,5 @@ useChatSession(workspacePath, sessionId, sessionPath)
 5. 事件必须先由 workspace 隔离到 session，再修改流状态。
 6. settle refresh 只可清理触发它的那一代流。
 7. `SessionView` 是渲染级 transcript 转换的唯一归属，组件不维护平行缓存。
+8. optimistic user 只能由 canonical user entry 或明确失败替换；agent settled 不能提前清除尚未提交的 live tail。
+9. steer / follow-up 在 Pi 交付前只存在于各自队列，Renderer 只能根据 Main 发布的 client ID confirmation/clear event 移除，不能按文本或 user entry 数量推断。

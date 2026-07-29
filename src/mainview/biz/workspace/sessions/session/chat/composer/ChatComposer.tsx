@@ -1,42 +1,55 @@
-import { type FormEvent, type ReactElement, useState } from "react";
+import { type SubmitEvent, type ReactElement, useMemo, useState } from "react";
 import type { PiImageAttachment, PiOpenedSession } from "@shared/pi-contract";
-import type { ChatSession } from "@view/chat-store";
+import type { ChatQueuedInputs, ChatSession } from "@view/chat-store";
 import { AuthenticationAtom } from "@view/states/authentication.atom";
 import { ComposerAttachments } from "./ComposerAttachments";
 import { ComposerToolbar } from "./ComposerToolbar";
+import { QueuedInputs } from "./QueuedInputs";
 import { useComposerAttachments } from "./use-composer-attachments";
 
 type ChatComposerProps = {
-	error?: string;
+	error?: string | null;
 	isSending: boolean;
 	openedSession: PiOpenedSession;
+	queuedInputs: ChatQueuedInputs;
 	session: ChatSession;
 };
+
+export function useLLMStatus(openedSession: PiOpenedSession) {
+	const authentication = AuthenticationAtom.useData() ?? [];
+	const validProviders = useMemo(() => {
+		const set = new Set<string>();
+		for (const { status, provider } of authentication) {
+			if (status === "available") set.add(provider);
+		}
+		return set;
+	}, [authentication]);
+
+	const { model } = openedSession.runtime;
+	return {
+		hasValidProvider: validProviders.size > 0,
+		isValidModel: model !== undefined && validProviders.has(model.provider),
+		supportsImages: model ? model.input.includes("image") : false,
+	};
+}
 
 export function ChatComposer({
 	error,
 	isSending,
 	openedSession,
+	queuedInputs,
 	session,
 }: ChatComposerProps): ReactElement {
 	const [draft, setDraft] = useState("");
 	const [attachments, setAttachments] = useState<PiImageAttachment[]>([]);
-	const authentication = AuthenticationAtom.useData() ?? [];
 	const attachmentState = useComposerAttachments({
 		attachments,
 		onChange: setAttachments,
 	});
 	const isStreaming = openedSession.runtime.isStreaming;
-	const selectedModel = openedSession.runtime.model;
-	const hasAvailableCredential = authentication.some((provider) => provider.status === "available");
-	const hasAvailableModel =
-		selectedModel !== undefined &&
-		authentication.some(
-			(provider) =>
-				provider.provider === selectedModel.provider && provider.status === "available",
-		);
-	const canCompose = hasAvailableCredential && hasAvailableModel;
-	const supportsImages = selectedModel?.input.includes("image") ?? false;
+	const { hasValidProvider, isValidModel, supportsImages } = useLLMStatus(openedSession);
+
+	const canCompose = hasValidProvider && isValidModel;
 	const hasUnsupportedAttachments = attachments.length > 0 && !supportsImages;
 	const canSend = canCompose
 		&& !attachmentState.isAdding
@@ -45,14 +58,13 @@ export function ChatComposer({
 	const visibleError = attachmentState.error
 		?? (hasUnsupportedAttachments ? "当前模型不支持图片输入，请切换模型或移除附件。" : error);
 
-	async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+	async function handleSubmit(event: SubmitEvent<HTMLFormElement>): Promise<void> {
 		event.preventDefault();
 		if (!canSend) return;
 		const text = draft.trim();
-		const images = attachments.map((attachment) => attachment.source);
 		try {
-			if (isStreaming) await session.steer(text, images);
-			else await session.prompt(text, images);
+			if (isStreaming) await session.steer({ text, attachments });
+			else await session.prompt({ text, attachments });
 			setDraft("");
 			setAttachments([]);
 		} catch {
@@ -63,7 +75,7 @@ export function ChatComposer({
 	async function handleFollowUp(): Promise<void> {
 		if (!isStreaming || !canSend) return;
 		try {
-			await session.followUp(draft.trim(), attachments.map((attachment) => attachment.source));
+			await session.followUp({ text: draft.trim(), attachments });
 			setDraft("");
 			setAttachments([]);
 		} catch {
@@ -83,6 +95,7 @@ export function ChatComposer({
 
 	return (
 		<div className="bg-background px-5 pb-4 pt-2">
+			<QueuedInputs items={queuedInputs} />
 			<form className="mx-auto max-w-3xl" onSubmit={(event) => void handleSubmit(event)}>
 				<div className="rounded-2xl border bg-muted/20 p-3 focus-within:ring-2 focus-within:ring-ring has-disabled:cursor-not-allowed has-disabled:opacity-50">
 					<ComposerAttachments
@@ -99,7 +112,7 @@ export function ChatComposer({
 						onChange={(event) => setDraft(event.target.value)}
 						onKeyDown={handleKeyDown}
 						onPaste={handlePaste}
-						placeholder={composerPlaceholder(hasAvailableCredential, isStreaming)}
+						placeholder={composerPlaceholder(hasValidProvider, isStreaming)}
 						rows={1}
 						value={draft}
 					/>
@@ -108,8 +121,8 @@ export function ChatComposer({
 					attachmentCount={attachments.length}
 					canCompose={canCompose}
 					canSend={canSend}
-					hasAvailableCredential={hasAvailableCredential}
-					hasAvailableModel={hasAvailableModel}
+					hasAvailableCredential={hasValidProvider}
+					hasAvailableModel={isValidModel}
 					isAddingAttachments={attachmentState.isAdding}
 					isSending={isSending}
 					isStreaming={isStreaming}
@@ -120,11 +133,11 @@ export function ChatComposer({
 					supportsImages={supportsImages}
 				/>
 			</form>
-			{visibleError ? (
+			{visibleError && (
 				<p className="mx-auto mt-3 max-w-3xl text-sm text-destructive" role="alert">
 					{visibleError}
 				</p>
-			) : null}
+			)}
 		</div>
 	);
 }

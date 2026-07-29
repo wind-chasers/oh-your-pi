@@ -19,6 +19,7 @@ const { createPiRpc } = await import(".");
 function createTestApp(overrides: {
 	cancel?: (input: { provider: string }) => void;
 	list?: () => unknown;
+	regenerate?: (input: { sessionPath: string; entryId: string; text: string }) => unknown;
 }): Application {
 	return {
 		authentication: {
@@ -29,6 +30,7 @@ function createTestApp(overrides: {
 		session: {
 			subscribe: () => () => {},
 			subscribePermissions: () => () => {},
+			regenerate: overrides.regenerate ?? (() => {}),
 		},
 	} as unknown as Application;
 }
@@ -52,6 +54,14 @@ test("认证提供商检查不要求工作区参数", () => {
 	createPiRpc({ app: createTestApp({ list }), desktop });
 	requestHandlers?.inspectAuthentication({} as never);
 	expect(list).toHaveBeenCalledWith();
+});
+
+test("历史消息重新生成请求被转发给会话业务", () => {
+	const regenerate = mock(() => undefined);
+	createPiRpc({ app: createTestApp({ regenerate }), desktop });
+	const input = { sessionPath: "/tmp/session.jsonl", entryId: "entry-1", text: "修改后" };
+	requestHandlers?.regenerateSessionMessage(input as never);
+	expect(regenerate).toHaveBeenCalledWith(input);
 });
 
 test("工作区文件夹打开请求被转发给桌面服务", () => {

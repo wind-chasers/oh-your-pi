@@ -10,9 +10,11 @@ import type {
 	PiSessionAbortRequest,
 	PiSessionDeleteRequest,
 	PiSessionCommand,
+	PiQueuedSessionCommand,
 	PiSessionEvent,
 	PiSessionModelRequest,
 	PiSessionRuntimeState,
+	PiSessionRegenerateRequest,
 	PiSessionThinkingRequest,
 	PiSessionTranscript,
 	PiSessionRenameRequest,
@@ -145,11 +147,11 @@ export async function continueRecentPiSession(request: PiWorkspaceRequest): Prom
 
 
 
-export async function setPiSessionModel(request: PiSessionModelRequest): Promise<PiOpenedSession> {
+export async function setPiSessionModel(request: PiSessionModelRequest): Promise<PiSessionRuntimeState> {
 	return rpc.request.setSessionModel(request);
 }
 
-export async function setPiSessionThinking(request: PiSessionThinkingRequest): Promise<PiOpenedSession> {
+export async function setPiSessionThinking(request: PiSessionThinkingRequest): Promise<PiSessionRuntimeState> {
 	return rpc.request.setSessionThinking(request);
 }
 
@@ -159,11 +161,15 @@ export async function promptPiSession(request: PiSessionCommand): Promise<PiSess
 	return rpc.request.promptSession(request);
 }
 
-export async function steerPiSession(request: PiSessionCommand): Promise<PiSessionRuntimeState> {
+export async function regeneratePiSession(request: PiSessionRegenerateRequest): Promise<void> {
+	return rpc.request.regenerateSessionMessage(request);
+}
+
+export async function steerPiSession(request: PiQueuedSessionCommand): Promise<PiSessionRuntimeState> {
 	return rpc.request.steerSession(request);
 }
 
-export async function followUpPiSession(request: PiSessionCommand): Promise<PiSessionRuntimeState> {
+export async function followUpPiSession(request: PiQueuedSessionCommand): Promise<PiSessionRuntimeState> {
 	return rpc.request.followUpSession(request);
 }
 

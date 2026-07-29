@@ -26,7 +26,7 @@
 5. 凭据、token、API key 和完整认证文件不得进入契约；已属于 session transcript 的 tool-call arguments 作为消息事实原样保留。
 6. 契约由 TypeScript 与 Electrobun schema 提供静态约束，不增加 Zod schema 或 `.parse()` 包装。
 
-`PiSessionMessage` 直接组合 Pi AI 的 `UserMessage`、`AssistantMessage`、`ToolResultMessage` 与 Agent Core 的 bash/custom/summary 精确类型；只用 `Omit` 移除 assistant `diagnostics` 和 tool/custom arbitrary `details`，并过滤隐藏 custom message。Transcript 使用 `messages` 表达可渲染线性列表，不暴露 session tree。`PiSessionEvent` 保留 SDK 已有事件名和字段，只为路由补充 `sessionPath`，并把增量与错误投影为可传输字段。
+`PiSessionMessage` 直接组合 Pi AI 的 `UserMessage`、`AssistantMessage`、`ToolResultMessage` 与 Agent Core 的 bash/custom/summary 精确类型；只用 `Omit` 移除 assistant `diagnostics` 和 tool/custom arbitrary `details`，并过滤隐藏 custom message。`PiSessionTranscriptEntry` 用 `id + parentId + message` 表达当前分支中的持久节点，entry identity 不再混入 SDK message。steer / follow-up 命令额外携带短 `clientId`；transcript update 用 `confirmedInputs` 返回 `clientId ↔ entryId`，只作为本次运行的 sidecar 确认，不写入 Pi JSONL。`transcript_entries_appended` 推送普通 append；`transcript_rebased` 携带公共前缀长度 `replaceFrom` 和变化 tail，Renderer 保留前缀引用后只替换尾部。
 
 ## 契约流向
 
@@ -52,6 +52,8 @@ flowchart LR
 5. 更新消费方，并检查所有旧字段和旧调用是否完成干净切换。
 
 request 用于需要调用方等待接受、结果或错误的操作；message 用于主进程主动产生的流式事件。不要用 message 模拟 request，也不要让 request 等待完整流式生成结束。
+
+`regenerateSessionMessage` 接收持久用户消息的 `entryId` 和编辑后的 prompt。主进程使用 Pi 原生 `navigateTree(entryId, { summarize: false })` 回到该消息的父节点，在同一 session 文件内追加新分支并立即返回分支基线 snapshot；旧分支保持 append-only，不修改或删除原消息。
 
 ## 验证
 

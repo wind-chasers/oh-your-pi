@@ -1,13 +1,14 @@
 import { type ReactElement, useEffect, useState } from "react";
 import { SelectedSessionAtom, WorkspaceAtom } from "@view/states/current.atom";
 import { WorkspaceAttr } from "./attr";
-import { SessionChat } from "./sessions/session";
+import { SessionChat, EditMessageProvider } from "./sessions/session";
 import { FilePreview } from "./files/FilePreview";
 import { WorkspaceFileExplorer } from "./files/WorkspaceFileExplorer";
 import { useWorkspaceFiles } from "./files/use-workspace-files";
 import { SessionList } from "./sessions/SessionList";
 import { WorkspaceAlerts } from "./WorkspaceAlerts";
 import { WorkspacePlaceholder, WorkspaceReady } from "./WorkspaceEmptyState";
+
 
 function SidePannel(props: {
 	fileTreeOpen: boolean;
@@ -50,14 +51,16 @@ export function WorkspacePage(): ReactElement {
 				<SidePannel fileTreeOpen={fileTreeOpen} />
 				<div className="min-w-0 flex-1 overflow-hidden">
 					{selectedSession?.workspacePath === snapshot.workspacePath ? (
-						<SessionChat
-							isFileTreeOpen={fileTreeOpen}
-							key={selectedSession.sessionId}
-							onToggleFileTree={() => setFileTreeOpen((value) => !value)}
-							sessionId={selectedSession.sessionId}
-							sessionPath={selectedSession.sessionPath}
-							workspacePath={selectedSession.workspacePath}
-						/>
+						<EditMessageProvider key={selectedSession.sessionId}>
+							<SessionChat
+								isFileTreeOpen={fileTreeOpen}
+								key={selectedSession.sessionId}
+								onToggleFileTree={() => setFileTreeOpen((value) => !value)}
+								sessionId={selectedSession.sessionId}
+								sessionPath={selectedSession.sessionPath}
+								workspacePath={selectedSession.workspacePath}
+							/>
+						</EditMessageProvider>
 					) : (
 						<WorkspaceReady onOpenFiles={() => setFileTreeOpen(true)} />
 					)}

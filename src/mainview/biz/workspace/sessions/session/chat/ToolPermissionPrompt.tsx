@@ -1,19 +1,22 @@
-import { type ReactElement, useState } from "react";
-import type { PiToolPermissionRequest } from "@shared/pi-contract";
+import { useState } from "react";
 import { Button } from "@view/components/ui/button";
+import { type ChatSession, type ChatTranscriptTail } from "@view/chat-store";
 
 type ToolPermissionPromptProps = {
-	onDecide: (allowed: boolean) => Promise<void>;
-	request: PiToolPermissionRequest;
+	session: ChatSession;
+	tail: ChatTranscriptTail;
 };
 
-export function ToolPermissionPrompt({ onDecide, request }: ToolPermissionPromptProps): ReactElement {
+export function ToolPermissionPrompt({ session, tail }: ToolPermissionPromptProps) {
+	const request = tail.type === "live-agent" ? tail.output.permissionRequests[0] : undefined;
 	const [isDeciding, setIsDeciding] = useState(false);
+
+	if (!request) return null;
 
 	async function decide(allowed: boolean): Promise<void> {
 		setIsDeciding(true);
 		try {
-			await onDecide(allowed);
+			await session.respondToPermission(request!, allowed);
 		} finally {
 			setIsDeciding(false);
 		}
@@ -25,7 +28,7 @@ export function ToolPermissionPrompt({ onDecide, request }: ToolPermissionPrompt
 			<p className="mt-1 text-sm text-muted-foreground">
 				{request.isDangerous ? "危险操作可能修改或破坏本机状态。" : "该操作会修改文件或执行本机命令。"}
 			</p>
-			<pre className="mt-3 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded bg-background/70 p-3 text-xs">
+			<pre className="mt-3 max-h-32 overflow-auto whitespace-pre-wrap wrap-break-word rounded bg-background/70 p-3 text-xs">
 				{request.message}
 			</pre>
 			<div className="mt-3 flex justify-end gap-2">

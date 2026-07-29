@@ -39,6 +39,11 @@ export type PiSessionMessage =
 	| Omit<CustomMessage, "details">
 	| BranchSummaryMessage
 	| CompactionSummaryMessage;
+export type PiSessionTranscriptEntry = {
+	id: string;
+	parentId: string | null;
+	message: PiSessionMessage;
+};
 
 export type PiWorkspaceRequest = {
 	workspacePath: string;
@@ -87,8 +92,6 @@ export type PiImageAttachment = {
 	source: PiImageAttachmentSource;
 	name: string;
 	previewDataUrl: string;
-	width: number;
-	height: number;
 };
 
 export type PiSessionTranscriptRequest = {
@@ -106,6 +109,15 @@ export type PiSessionCommand = {
 	sessionPath: string;
 	text: string;
 	images?: PiImageAttachmentSource[];
+};
+
+export type PiQueuedSessionCommand = PiSessionCommand & {
+	clientId: string;
+};
+
+export type PiSessionRegenerateRequest = PiSessionCommand & {
+	clientId: string;
+	entryId: string;
 };
 
 export type PiSessionAbortRequest = {
@@ -224,7 +236,20 @@ export type PiToolPermissionResolution = {
 
 export type PiSessionTranscript = {
 	session: PiSessionSummary;
-	messages: PiSessionMessage[];
+	entries: PiSessionTranscriptEntry[];
+};
+
+
+export type PiConfirmedQueuedInput = {
+	clientId: string;
+	entryId: string;
+};
+export type PiSessionTranscriptUpdate = Pick<
+	PiSessionSummary,
+	"firstMessage" | "messageCount" | "modifiedAt"
+> & {
+	entries: PiSessionTranscriptEntry[];
+	confirmedInputs: PiConfirmedQueuedInput[];
 };
 
 export type PiModel = Pick<
@@ -265,4 +290,8 @@ export type PiSessionEvent =
 	| RoutedEvent<Pick<ToolExecutionEndEvent, "type" | "toolCallId" | "toolName" | "isError">>
 	| RoutedEvent<Pick<TextDelta, "type" | "delta">>
 	| RoutedEvent<Pick<ThinkingDelta, "type" | "delta">>
+	| RoutedEvent<{ type: "transcript_entries_appended" } & PiSessionTranscriptUpdate>
+	| RoutedEvent<{ type: "transcript_rebased"; replaceFrom: number } & PiSessionTranscriptUpdate>
+	| RoutedEvent<{ type: "queued_inputs_cleared"; clientIds: string[] }>
+	| RoutedEvent<{ type: "regeneration_failed"; clientId: string; errorMessage: string }>
 	| { sessionPath: string; type: "error"; errorMessage: NonNullable<AssistantMessage["errorMessage"]> };

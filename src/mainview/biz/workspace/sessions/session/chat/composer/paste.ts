@@ -56,7 +56,7 @@ async function fileToImageAttachment(file: File, index: number): Promise<PiImage
 	if (file.size > PI_IMAGE_ATTACHMENT_MAX_SOURCE_BYTES) {
 		throw new Error(`图片文件超过 64 MB：${name}`);
 	}
-	const { width, height, previewDataUrl } = await createImagePreview(file, name);
+	const { previewDataUrl } = await createImagePreview(file, name);
 	const dataUrl = await readBlobDataUrl(file);
 	const separatorIndex = dataUrl.indexOf(",");
 	if (separatorIndex < 0 || !dataUrl.slice(0, separatorIndex).includes(";base64")) {
@@ -72,15 +72,13 @@ async function fileToImageAttachment(file: File, index: number): Promise<PiImage
 		},
 		name,
 		previewDataUrl,
-		width,
-		height,
 	};
 }
 
 async function createImagePreview(
 	file: File,
 	name: string,
-): Promise<{ width: number; height: number; previewDataUrl: string }> {
+): Promise<{ previewDataUrl: string }> {
 	const image = await loadImage(file, name);
 	try {
 		const width = image.naturalWidth;
@@ -96,8 +94,6 @@ async function createImagePreview(
 		if (!context) throw new Error(`无法生成图片预览：${name}`);
 		context.drawImage(image, 0, 0, canvas.width, canvas.height);
 		return {
-			width,
-			height,
 			previewDataUrl: canvas.toDataURL("image/webp", PREVIEW_QUALITY),
 		};
 	} finally {

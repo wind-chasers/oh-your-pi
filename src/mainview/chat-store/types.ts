@@ -1,4 +1,8 @@
-import type { PiOpenedSession, PiToolPermissionRequest } from "@shared/pi-contract";
+import type {
+	PiImageAttachment,
+	PiOpenedSession,
+	PiToolPermissionRequest,
+} from "@shared/pi-contract";
 
 export const DEFAULT_SESSION_INACTIVITY_TIMEOUT_MS = 10 * 60_000;
 export const DEFAULT_SESSION_SWEEP_INTERVAL_MS = 60_000;
@@ -15,6 +19,51 @@ export type ChatToolCall = {
 	executionStatus: ChatToolExecutionStatus;
 };
 
+export type ChatUserInput = {
+	text: string;
+	attachments: readonly PiImageAttachment[];
+};
+
+export type ChatMessageImagePreview = {
+	id: string;
+	alt: string;
+	src: string;
+};
+
+export type ChatPendingUserMessage = {
+	clientId: string;
+	text: string;
+	images: readonly ChatMessageImagePreview[];
+};
+
+export type ChatQueuedUserInput = {
+	state: "submitting" | "queued";
+	message: ChatPendingUserMessage;
+};
+
+export type ChatQueuedInputs = {
+	steering: readonly ChatQueuedUserInput[];
+	followUps: readonly ChatQueuedUserInput[];
+};
+
+export type ChatLiveAgentTail = {
+	phase: "streaming" | "settled-awaiting-commit";
+	text: string;
+	thinking: string;
+	tools: readonly ChatToolCall[];
+	permissionRequests: readonly PiToolPermissionRequest[];
+};
+
+export type ChatTranscriptTail =
+	| { type: "empty" }
+	| { type: "optimistic-user"; message: ChatPendingUserMessage }
+	| { type: "live-agent"; output: ChatLiveAgentTail };
+
+export type ChatSessionTransientState = {
+	tail: ChatTranscriptTail;
+	queuedInputs: ChatQueuedInputs;
+};
+
 export type ChatSessionSnapshot = {
 	workspacePath: string;
 	sessionId: string;
@@ -24,11 +73,7 @@ export type ChatSessionSnapshot = {
 	isRefreshing: boolean;
 	isSending: boolean;
 	error: string | null;
-	pendingUserMessage: string | null;
-	streamedText: string;
-	thinkingText: string;
-	tools: readonly ChatToolCall[];
-	permissionRequests: readonly PiToolPermissionRequest[];
+	transient: ChatSessionTransientState;
 };
 
 export type ChatSessionActivity = {

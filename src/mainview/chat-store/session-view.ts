@@ -11,8 +11,8 @@ import type {
 	ToolResultMessage,
 	UserMessage,
 } from "@earendil-works/pi-ai";
-import type { PiSessionMessage } from "@shared/pi-contract";
-import type { ChatSession } from "./session";
+import type { PiSessionTranscriptEntry } from "@shared/pi-contract";
+import type { SessionSnapshot } from "./snapshot";
 import { haveSameDependencies } from "./utils";
 
 export type SessionViewToolCall = {
@@ -26,12 +26,14 @@ export type SessionViewToolCall = {
 	executionStatus: null;
 };
 
+export type UserViewItem =
+	| { type: "user"; entryId: string; message: UserMessage; messageIndex: number; text: string; images: ImageContent[] };
 export type SessionViewItem =
-	| { type: "user"; message: UserMessage; messageIndex: number; text: string; images: ImageContent[] }
-	| { type: "assistant"; message: AssistantMessage; messageIndex: number; text: string; thinking: string }
-	| { type: "system"; message: BranchSummaryMessage | CompactionSummaryMessage; messageIndex: number; text: string }
-	| { type: "bash"; message: BashExecutionMessage; messageIndex: number }
-	| { type: "custom"; message: CustomMessage; messageIndex: number; text: string }
+	| UserViewItem
+	| { type: "assistant"; entryId: string; message: AssistantMessage; messageIndex: number; text: string; thinking: string }
+	| { type: "system"; entryId: string; message: BranchSummaryMessage | CompactionSummaryMessage; messageIndex: number; text: string }
+	| { type: "bash"; entryId: string; message: BashExecutionMessage; messageIndex: number }
+	| { type: "custom"; entryId: string; message: CustomMessage; messageIndex: number; text: string }
 	| {
 		type: "tool-section";
 		sectionKey: string;
@@ -61,24 +63,39 @@ type PendingToolSection = {
 	firstMessageIndex: number;
 	lastMessageIndex: number;
 	toolCalls: SessionViewToolCall[];
+	entryIds: string[];
 };
 
 const EMPTY_ITEMS: readonly SessionViewItem[] = [];
 
 export class SessionView {
-	private transcriptMessages: PiSessionMessage[] | null = null;
+	private transcriptEntries: readonly PiSessionTranscriptEntry[] | null = null;
 	private renderItems: readonly SessionViewItem[] = EMPTY_ITEMS;
 	private calculationCache = new WeakMap<object, CachedCalculation>();
 
-	public constructor(private readonly session: ChatSession) {}
+	public constructor(private readonly snapshot: SessionSnapshot) {}
 
 	public get items(): readonly SessionViewItem[] {
-		const messages = this.session.getSnapshot().openedSession?.transcript.messages;
-		if (!messages) return EMPTY_ITEMS;
-		if (messages !== this.transcriptMessages) {
-			this.transcriptMessages = messages;
-			this.renderItems = createSessionViewItems(messages);
+		const entries = this.snapshot.get().openedSession?.transcript.entries;
+		if (!entries) return EMPTY_ITEMS;
+		if (entries === this.transcriptEntries) return this.renderItems;
+		if (this.transcriptEntries) {
+			const unchangedPrefix = commonEntryPrefixLength(this.transcriptEntries, entries);
+			const appendOnly = unchangedPrefix === this.transcriptEntries.length
+				&& entries.length > unchangedPrefix;
+			const rebuildFrom = appendOnly
+				? findCurrentTurnStart(entries)
+				: findRebaseStart(this.transcriptEntries, entries, unchangedPrefix, this.renderItems);
+			if (rebuildFrom > 0) {
+				const prefix = this.renderItems.filter((item) => getLastMessageIndex(item) < rebuildFrom);
+				this.renderItems = [...prefix, ...createSessionViewItems(entries, rebuildFrom)];
+			} else {
+				this.renderItems = createSessionViewItems(entries);
+			}
+		} else {
+			this.renderItems = createSessionViewItems(entries);
 		}
+		this.transcriptEntries = entries;
 		return this.renderItems;
 	}
 
@@ -97,19 +114,21 @@ export class SessionView {
 	}
 
 	public dispose(): void {
-		this.transcriptMessages = null;
+		this.transcriptEntries = null;
 		this.renderItems = EMPTY_ITEMS;
 		this.calculationCache = new WeakMap();
 	}
 }
 
 export function getSessionViewItemKey(item: SessionViewItem): string {
-	if (item.type === "tool-section") return item.sectionKey;
-	return `${item.type}:${item.messageIndex}:${item.message.timestamp}`;
+	return item.type === "tool-section" ? item.sectionKey : item.entryId;
 }
 
-function createSessionViewItems(messages: PiSessionMessage[]): SessionViewItem[] {
-	const toolResults = collectToolResults(messages);
+function createSessionViewItems(
+	entries: readonly PiSessionTranscriptEntry[],
+	startIndex = 0,
+): SessionViewItem[] {
+	const toolResults = collectToolResults(entries, startIndex);
 	const items: SessionViewItem[] = [];
 	let pending: PendingToolSection | null = null;
 
@@ -117,12 +136,7 @@ function createSessionViewItems(messages: PiSessionMessage[]): SessionViewItem[]
 		if (!pending) return;
 		items.push({
 			type: "tool-section",
-			sectionKey: [
-				"tool-section",
-				pending.firstMessageIndex,
-				pending.lastMessageIndex,
-				...pending.toolCalls.map((toolCall) => toolCall.id),
-			].join("-"),
+			sectionKey: `tool-section:${pending.entryIds.join(":")}`,
 			firstMessageIndex: pending.firstMessageIndex,
 			lastMessageIndex: pending.lastMessageIndex,
 			toolCalls: pending.toolCalls,
@@ -130,8 +144,9 @@ function createSessionViewItems(messages: PiSessionMessage[]): SessionViewItem[]
 		pending = null;
 	}
 
-	for (let messageIndex = 0; messageIndex < messages.length; messageIndex += 1) {
-		const message = messages[messageIndex];
+	for (let messageIndex = startIndex; messageIndex < entries.length; messageIndex += 1) {
+		const entry = entries[messageIndex];
+		const message = entry.message;
 		if (message.role === "toolResult") continue;
 		if (message.role === "assistant") {
 			const parts = readAssistantParts(message);
@@ -140,6 +155,7 @@ function createSessionViewItems(messages: PiSessionMessage[]): SessionViewItem[]
 				flushPending();
 				items.push({
 					type: "assistant",
+					entryId: entry.id,
 					message,
 					messageIndex,
 					text: parts.text,
@@ -168,33 +184,38 @@ function createSessionViewItems(messages: PiSessionMessage[]): SessionViewItem[]
 					firstMessageIndex: messageIndex,
 					lastMessageIndex: messageIndex,
 					toolCalls,
+					entryIds: [entry.id],
 				};
 			} else {
 				pending.lastMessageIndex = messageIndex;
 				pending.toolCalls.push(...toolCalls);
+				pending.entryIds.push(entry.id);
 			}
 			continue;
 		}
 		flushPending();
 		if (message.role === "user") {
 			const parts = readUserParts(message);
-			items.push({ type: "user", message, messageIndex, ...parts });
+			items.push({ type: "user", entryId: entry.id, message, messageIndex, ...parts });
 		} else if (message.role === "branchSummary" || message.role === "compactionSummary") {
-			items.push({ type: "system", message, messageIndex, text: message.summary });
+			items.push({ type: "system", entryId: entry.id, message, messageIndex, text: message.summary });
 		} else if (message.role === "bashExecution") {
-			items.push({ type: "bash", message, messageIndex });
+			items.push({ type: "bash", entryId: entry.id, message, messageIndex });
 		} else if (message.display) {
-			items.push({ type: "custom", message, messageIndex, text: messageContentToText(message.content) });
+			items.push({ type: "custom", entryId: entry.id, message, messageIndex, text: messageContentToText(message.content) });
 		}
 	}
 	flushPending();
 	return items;
 }
 
-function collectToolResults(messages: PiSessionMessage[]): Map<string, ToolResult> {
+function collectToolResults(
+	entries: readonly PiSessionTranscriptEntry[],
+	startIndex: number,
+): Map<string, ToolResult> {
 	const results = new Map<string, ToolResult>();
-	for (let messageIndex = 0; messageIndex < messages.length; messageIndex += 1) {
-		const message = messages[messageIndex];
+	for (let messageIndex = startIndex; messageIndex < entries.length; messageIndex += 1) {
+		const message = entries[messageIndex].message;
 		if (message.role !== "toolResult") continue;
 		results.set(message.toolCallId, {
 			message,
@@ -203,6 +224,51 @@ function collectToolResults(messages: PiSessionMessage[]): Map<string, ToolResul
 		});
 	}
 	return results;
+}
+
+function commonEntryPrefixLength(
+	previous: readonly PiSessionTranscriptEntry[],
+	next: readonly PiSessionTranscriptEntry[],
+): number {
+	const limit = Math.min(previous.length, next.length);
+	let index = 0;
+	while (index < limit && previous[index] === next[index]) index += 1;
+	return index;
+}
+
+function findRebaseStart(
+	previous: readonly PiSessionTranscriptEntry[],
+	next: readonly PiSessionTranscriptEntry[],
+	unchangedPrefix: number,
+	items: readonly SessionViewItem[],
+): number {
+	if (unchangedPrefix === 0) return 0;
+	let rebuildFrom = unchangedPrefix;
+	const changedToolIds = [previous[unchangedPrefix], next[unchangedPrefix]]
+		.flatMap((entry) => entry?.message.role === "toolResult" ? [entry.message.toolCallId] : []);
+	const nextRole = next[unchangedPrefix]?.message.role;
+	for (const item of items) {
+		if (item.type !== "tool-section") continue;
+		if (
+			item.lastMessageIndex >= unchangedPrefix
+			|| (item.lastMessageIndex === unchangedPrefix - 1 && nextRole === "assistant")
+			|| item.toolCalls.some((toolCall) => changedToolIds.includes(toolCall.id))
+		) {
+			rebuildFrom = Math.min(rebuildFrom, item.firstMessageIndex);
+		}
+	}
+	return rebuildFrom;
+}
+
+function findCurrentTurnStart(entries: readonly PiSessionTranscriptEntry[]): number {
+	for (let index = entries.length - 1; index >= 0; index -= 1) {
+		if (entries[index].message.role === "user") return index;
+	}
+	return 0;
+}
+
+function getLastMessageIndex(item: SessionViewItem): number {
+	return item.type === "tool-section" ? item.lastMessageIndex : item.messageIndex;
 }
 
 function readUserParts(message: UserMessage): { text: string; images: ImageContent[] } {

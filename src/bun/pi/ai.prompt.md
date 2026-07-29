@@ -12,6 +12,7 @@ flowchart TD
   Workspaces --> Registry
   Registry --> Sessions["PiSession × N"]
   Sessions --> Agent["AgentSession + services"]
+	Sessions --> QueueTracker["QueuedInputTracker"]
 ```
 
 - `PiRuntime` 在主进程生命周期内唯一，持有一个 `ModelRuntime`、Pi agent 目录、workspace 缓存和 session registry。
@@ -26,8 +27,9 @@ flowchart TD
 - `workspace.ts`：资源检查、持久 session 列表/读取，以及创建、打开、继续最近 session。
 - `authentication.ts`：只包装 provider 查询与登录入口，登录交互直接使用 Pi AI `AuthInteraction` / `AuthEvent` / `AuthPrompt`，不维护中间事件类型。
 - `session/registry.ts`：live session 身份与并发打开控制。
-- `session/session.ts`：拥有 `AgentSession` 生命周期和命令，直接转发 SDK `AgentSessionEvent`，只为 SDK prompt promise 的异步失败补充内部 `error` event。
-- `session/snapshot.ts`：从 `AgentSession.messages` 构造共享线性 transcript；直接使用 Pi AI 与 Agent Core 的精确消息类型，只过滤隐藏 custom message，并移除 assistant `diagnostics` 与 tool/custom arbitrary `details`。
+- `session/session.ts`：拥有 `AgentSession` 生命周期和命令，转发 SDK event，并在普通 user message 持久化及整轮 settle 后发布 transcript entry 增量；只编排队列追踪器，不保存 queue shadow/confirmation 细节。
+- `session/queued-input-tracker.ts`：独占 steer/follow-up sidecar 状态机；同步 SDK queue_update，关联 user message 生命周期与持久 entry，并返回精确 confirmation/clear client IDs。Pi 对纯图片消息不发 removal queue_update，tracker 以图片对象身份认领 client ID，同时保留空字符串 shadow slot 维持后续快照对齐；持久确认只接受原始 user message 对象身份，不按 timestamp 猜测。
+- `session/snapshot.ts`：从 `SessionManager.buildContextEntries()` 构造带稳定 entry identity 的共享 transcript；直接使用 Pi AI 与 Agent Core 的精确消息类型，只过滤隐藏 custom message，并移除 assistant `diagnostics` 与 tool/custom arbitrary `details`。
 - `session/hooks.ts`：把上层授权 hook 注入 SDK extension。
 - `errors.ts`：只分类项目需要特殊处理的 Pi 错误。
 
@@ -43,10 +45,13 @@ flowchart TD
 
 `PiSession.path` 只在 SDK 已产生持久 session 文件后可用；没有路径是错误，不创建临时替代 ID。
 
+Pi SDK 的普通 `message_end` 先于 `SessionManager.appendMessage()` 通知订阅者。`PiSession` 因此在该调用栈结束后的 microtask 比较持久 transcript ID：用户 entry 立即发布以确认 Renderer pending message；assistant/tool result 在 `agent_settled` 后批量发布。比较时先在原始 context entries 上求公共前缀，只对变化 tail 做 wire DTO 投影；若旧 ID 不是新路径前缀，则发布 `replaceFrom + tail` 的 `transcript_rebased`。
+
 ## 命令语义
 
 - `prompt()` 接收文本与可选 `PiImageAttachmentSource[]`；路径源从文件系统读取，无路径 data 源从 base64 解码，两者都使用 Bun 原生 `Bun.Image` 限制像素、缩放并编码为 Pi `ImageContent`。SDK 接受 prompt 后返回，不等待整轮生成。
-- `steer()`、`followUp()` 使用相同图片源语义；`abort()` 直接保留 SDK 语义，不在此层增加队列或 UI 策略。
+- `steer()`、`followUp()` 使用相同图片源语义，并接收 Renderer 的短 `clientId`。独立 `QueuedInputTracker` 用与 SDK queue_update 同步的 sidecar FIFO 跟踪 queued input；`PiSession` 只负责把 tracker 结果编排进 transcript update/event。user message 持久化时发布 `clientId ↔ entryId`，ID 不进入模型上下文或 JSONL。`abort()` 在中止运行前清空 Pi 队列并发布被清理的 client IDs。
+- `regenerate()` 只接受当前 live session 中已有后续回复的持久用户 message entry；先通过 Pi 原生 `navigateTree(entryId, { summarize: false })` 回到其父节点，再提交编辑后的 prompt。原 entry 和旧分支保持 append-only；返回的 transcript 是提交新 prompt 前的新分支基线，runtime 是 prompt 被接受后的状态。
 - `setModel()` 必须从当前 `ModelRuntime` 解析真实模型。
 - `setThinking()` 只修改当前 live session。
 - `requireResolvedAuthentication()` 在发送前验证当前模型能够解析凭据。

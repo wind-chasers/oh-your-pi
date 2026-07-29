@@ -3,23 +3,26 @@ import { type ReactElement } from "react";
 import type { PiOpenedSession } from "@shared/pi-contract";
 import { Button } from "@view/components/ui/button";
 import { ContextBadge } from "./ContextBadge";
+import { ChatSession } from "@view/chat-store";
 
 type ChatHeaderProps = {
 	entryCount: number;
 	isFileTreeOpen: boolean;
 	isStreaming: boolean;
-	onAbort: () => Promise<void>;
 	onToggleFileTree: () => void;
+	session: ChatSession;
 	openedSession: PiOpenedSession;
 	title: string;
 };
+
+const NOOP = () => {};
 
 export function ChatHeader({
 	entryCount,
 	isFileTreeOpen,
 	isStreaming,
-	onAbort,
 	onToggleFileTree,
+	session,
 	openedSession,
 	title,
 }: ChatHeaderProps): ReactElement {
@@ -34,7 +37,7 @@ export function ChatHeader({
 			<div className="flex items-center gap-1">
 				<ContextBadge openedSession={openedSession} />
 				{isStreaming ? (
-					<Button onClick={() => void onAbort()} size="sm" type="button" variant="outline">
+					<Button onClick={() => session.abort().catch(NOOP)} size="sm" type="button" variant="outline">
 						<CircleStop aria-hidden />
 						停止
 					</Button>

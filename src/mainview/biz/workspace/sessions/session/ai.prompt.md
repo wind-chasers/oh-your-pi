@@ -13,9 +13,9 @@ useChatSession(workspacePath, sessionId, sessionPath)
 获得 `[snapshot, session]`：
 
 - `snapshot.openedSession`：持久 transcript 与 runtime 基线。
-- `snapshot.streamedText`、`thinkingText`、`tools`：当前轮尚未写回 transcript 的增量。
-- `snapshot.pendingUserMessage`：乐观提交的用户消息。
-- `snapshot.permissionRequests`：当前会话待处理授权队列。
+- `snapshot.transient.tail`：`empty | optimistic-user | live-agent`，表示紧接 canonical transcript 的互斥临时尾部。
+- `snapshot.transient.queuedInputs.steering` / `followUps`：尚未由 Pi 交付的两条独立用户输入队列。
+- live-agent tail 内聚文本、thinking、工具和授权请求。
 - `snapshot.isSending`、`isRefreshing`、`error`：会话请求状态。
 - `session.view.items`：由 `SessionView` 缓存的持久 render items。
 
@@ -23,9 +23,9 @@ useChatSession(workspacePath, sessionId, sessionPath)
 
 ## 用户意图
 
-- idle 提交：`session.prompt(text, images)`。
-- streaming 普通提交：`session.steer(text, images)`。
-- streaming follow-up：`session.followUp(text, images)`。
+- idle 提交：`session.prompt({ text, attachments })`。
+- streaming 普通提交：`session.steer({ text, attachments })`。
+- streaming follow-up：`session.followUp({ text, attachments })`。
 - abort：`session.abort()`。
 - 模型与 thinking：`session.setModel()` / `session.setThinking()`。
 - 工具授权：`session.respondToPermission()`。
@@ -42,19 +42,20 @@ useChatSession(workspacePath, sessionId, sessionPath)
 - render items 按 transcript messages 对象身份缓存，切回会话时直接复用。
 - user message 保留 Pi transcript 中的图片内容并以缩略图 + 可切换预览窗展示。
 
-`ChatTranscript` 只分发 `SessionViewItem[]`，再把当前轮临时文本与 `snapshot.tools` 接到末尾，不扫描线性 transcript，也不实现第二份合并规则。
+`ChatTranscript` 用独立 memo 历史区分发 `SessionViewItem[]`，再按 `snapshot.transient.tail` 渲染 optimistic user 或 live agent；两者不会同时出现。steer / follow-up 在 Pi 交付前由 Composer 上方的两条队列单独展示，steer 始终在前；Main 返回 `clientId ↔ entryId` 后才原子移除对应项，不伪装成持久 user message。
 
 `chat/tools/` 拥有统一工具外壳：折叠 chip、单项详情与全部展开视图。registry 只能覆盖 chip/input/output 点位，不能替换 section 布局。`AnimatedHeight` 用 ResizeObserver 跟踪自然高度，并在过渡期间维持普通顺序滚动容器的元素锚点或底部距离。
 
 ## 组件边界
 
 - `index.tsx`：把 Chat Store snapshot/session 适配给 Header、Transcript、权限提示与 Composer，不持有输入状态或发送操作。
-- `chat/ChatTranscript.tsx`：分发 `SessionViewItem[]`，组合当前轮临时输出。
+- `chat/ChatTranscript.tsx`：隔离持久历史与互斥临时尾部渲染。
 - `chat/messages/`：普通消息展示。
 - `chat/tools/`：工具 section、详情骨架、动画、renderer registry。
 - `chat/composer/ChatComposer.tsx`：拥有 draft、待发送附件及其 prompt / steer / follow-up 操作，协调输入区、附件区、工具栏和错误展示。
 - `chat/composer/ComposerAttachments.tsx`：待发送图片的缩略图、移除操作与预览入口。
 - `chat/composer/ComposerToolbar.tsx`：附件选择、模型/thinking、认证、follow-up 与发送操作。
+- `chat/composer/QueuedInputs.tsx`：先渲染 steering、再渲染 follow-ups，并展示各项提交状态。
 - `chat/composer/use-composer-attachments.ts`：原生选择与粘贴附件的合并、去重、上限、错误和预览索引状态。
 - `chat/composer/paste.ts`：从 textarea paste 事件的 `DataTransfer` 读取二进制图片，生成 Renderer 预览和无路径 data source；不依赖系统文件路径或额外 RPC。
 - `chat/composer/ModelThinkingSelector.tsx`：通过 `ChatSession` 修改模型和 thinking。

@@ -38,7 +38,6 @@ export function ComposerToolbar({
 	session,
 	supportsImages,
 }: ComposerToolbarProps): ReactElement {
-	const setAuthenticationOpen = AuthenticationDialogOpenAtom.useChange();
 	const attachmentButtonDisabled = isSending
 		|| isAddingAttachments
 		|| !canCompose
@@ -48,38 +47,13 @@ export function ComposerToolbar({
 	return (
 		<div className="mt-2 flex items-center justify-between gap-3 px-0.5">
 			<div className="flex min-w-0 items-center gap-2">
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button
-							aria-label="添加图片附件"
-							disabled={attachmentButtonDisabled}
-							onClick={onChooseAttachments}
-							size="icon-sm"
-							type="button"
-							variant="outline"
-						>
-							{isAddingAttachments
-								? <LoaderCircle aria-hidden className="animate-spin" />
-								: <ImagePlus aria-hidden />}
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent showArrow={false} side="top">
-						{supportsImages
-							? `添加图片（最多 ${PI_IMAGE_ATTACHMENT_LIMIT} 张）`
-							: "当前模型不支持图片输入"}
-					</TooltipContent>
-				</Tooltip>
+				<AttachmentEntry disabled={attachmentButtonDisabled} onChoose={onChooseAttachments} loading={isAddingAttachments} supports={supportsImages} />
 				<ModelThinkingSelector isUpdating={isSending} openedSession={openedSession} session={session} />
 			</div>
 			<div className="flex items-center gap-2">
-				{!hasAvailableCredential ? (
-					<Button onClick={() => setAuthenticationOpen(true)} size="sm" type="button">
-						<ShieldCheck aria-hidden data-icon="inline-start" />
-						连接模型提供商
-					</Button>
-				) : (
+				{!hasAvailableCredential ? <AuthenticationEntry /> : (
 					<>
-						{isStreaming ? (
+						{isStreaming && (
 							<Button
 								disabled={isSending || !canSend}
 								onClick={() => void onFollowUp()}
@@ -89,7 +63,7 @@ export function ComposerToolbar({
 							>
 								排队后续
 							</Button>
-						) : null}
+						)}
 						<p className="text-xs text-muted-foreground">⌘/Ctrl + Enter 发送</p>
 						<Button
 							disabled={isSending || !hasAvailableModel || !canSend}
@@ -105,5 +79,49 @@ export function ComposerToolbar({
 				)}
 			</div>
 		</div>
+	);
+}
+
+export function AuthenticationEntry() {
+	const setAuthenticationOpen = AuthenticationDialogOpenAtom.useChange();
+	return (
+		<Button onClick={() => setAuthenticationOpen(true)} size="sm" type="button">
+			<ShieldCheck aria-hidden data-icon="inline-start" />
+			连接模型提供商
+		</Button>
+	);
+}
+
+export function AttachmentEntry(props: {
+	disabled?: boolean;
+	onChoose: () => void;
+	loading?: boolean;
+	supports: boolean;
+}) {
+	const disabled = props.loading || props.disabled || !props.supports;
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span className="inline-flex">
+					<Button
+						aria-label="添加图片附件"
+						disabled={disabled}
+						onClick={props.onChoose}
+						size="icon-sm"
+						type="button"
+						variant="outline"
+					>
+						{props.loading
+							? <LoaderCircle aria-hidden className="animate-spin" />
+							: <ImagePlus aria-hidden />}
+					</Button>
+				</span>
+			</TooltipTrigger>
+			<TooltipContent showArrow={false} side="top">
+				{props.supports
+					? `添加图片（最多 ${PI_IMAGE_ATTACHMENT_LIMIT} 张）`
+					: "当前模型不支持图片输入"}
+			</TooltipContent>
+		</Tooltip>
 	);
 }

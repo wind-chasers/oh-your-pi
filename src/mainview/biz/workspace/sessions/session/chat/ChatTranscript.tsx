@@ -1,82 +1,82 @@
-import { type ReactElement } from "react";
-import {
-	getSessionViewItemKey,
-	type ChatToolCall,
-	type SessionViewItem,
-} from "@view/chat-store";
+import { memo, useMemo, useRef, useEffect, type ReactNode } from "react";
+
+import { getSessionViewItemKey, type SessionViewItem } from "@view/chat-store/session-view";
+import type { ChatTranscriptTail } from "@view/chat-store/types";
 import { AssistantMessage } from "./messages/AssistantMessage";
 import { SystemMessage } from "./messages/SystemMessage";
 import { ToolMessage } from "./messages/ToolMessage";
-import { UserMessage } from "./messages/UserMessage";
+import { UserMessage, PendingUserMessage, EditingUserMessage  } from "./messages/UserMessage";
 import { ToolCallsSection } from "./tools/ToolCallsSection";
+import { type UserViewItem } from "../editing-message";
+import type { ChatSession } from "@view/chat-store";
 
-type ChatTranscriptProps = {
+
+export function ChatTranscript({ items, isStreaming, showThinking, tail, editing, session }: {
 	items: readonly SessionViewItem[];
 	isStreaming: boolean;
-	pendingUserMessage?: string;
 	showThinking: boolean;
-	streamedText: string;
-	thinkingText: string;
-	tools: readonly ChatToolCall[];
-	transcriptEndRef: React.RefObject<HTMLDivElement | null>;
-};
-
-export function ChatTranscript({
-	items,
-	isStreaming,
-	pendingUserMessage,
-	showThinking,
-	streamedText,
-	thinkingText,
-	tools,
-	transcriptEndRef,
-}: ChatTranscriptProps): ReactElement {
-	let lastToolSectionIndex = -1;
-	for (let index = items.length - 1; index >= 0; index -= 1) {
-		if (items[index].type !== "tool-section") continue;
-		lastToolSectionIndex = index;
-		break;
-	}
-
-	const liveThinking = showThinking ? thinkingText : undefined;
-	const hasLiveAssistant = Boolean(
-		streamedText || liveThinking || (isStreaming && tools.length === 0),
-	);
+	session: ChatSession;
+	tail: ChatTranscriptTail;
+	editing?: UserViewItem | null;
+}) {
+	const autoScrollRef = useAutoScrollToBottom([items.length, tail]);
 
 	return (
 		<div className="relative min-h-0 flex-1">
 			<div aria-live="polite" className="chat-scroll-container h-full overflow-y-auto [overflow-anchor:none] px-5 py-5 sm:px-6 sm:py-6">
 				<div className="mx-auto flex max-w-3xl flex-col gap-4">
-					{items.map((item, index) => (
-						<ConversationRenderItem
-							isLive={isStreaming && tools.length === 0 && index === lastToolSectionIndex}
-							item={item}
-							key={getSessionViewItemKey(item)}
-						/>
-					))}
-					{pendingUserMessage ? <UserMessage images={[]} isPending text={pendingUserMessage} /> : null}
-					{hasLiveAssistant ? (
-						<AssistantMessage isStreaming={isStreaming} text={streamedText} thinking={liveThinking} />
-					) : null}
-					{tools.length > 0 ? <ToolCallsSection isLive={isStreaming} toolCalls={tools} /> : null}
-					<div ref={transcriptEndRef} />
+					<PersistItems session={session} items={items} editing={editing} />
+					<TransientTail isStreaming={isStreaming} showThinking={showThinking} tail={tail} />
+					<div ref={autoScrollRef} />
 				</div>
 			</div>
-			<div
-				aria-hidden="true"
-				className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-linear-to-b from-transparent to-background"
-			/>
+			{!editing && (
+				<div className="absolute inset-x-0 bottom-0 h-10 bg-linear-to-b from-transparent to-background" />
+			)}
 		</div>
 	);
 }
 
-function ConversationRenderItem({ isLive, item }: {
-	isLive: boolean;
+function useAutoScrollToBottom(deps: any[]) {
+	const ref = useRef<HTMLDivElement | null>(null);
+	useEffect(() => {
+		ref.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+	}, deps);
+	return ref;
+}
+
+
+function TransientTail({ isStreaming, showThinking, tail }: {
+	isStreaming: boolean;
+	showThinking: boolean;
+	tail: ChatTranscriptTail;
+}) {
+	if (tail.type === "empty") return null;
+	if (tail.type === "optimistic-user") {
+		const { text, images } = tail.message;
+		return <PendingUserMessage images={images} text={text} />;
+	}
+
+	const { text, thinking, tools} = tail.output;
+	const liveThinking = showThinking ? thinking : undefined;
+	return (
+		<>
+			<AssistantMessage isStreaming={isStreaming} text={text} thinking={liveThinking} />
+			<ToolCallsSection isLive={isStreaming} toolCalls={tools} />
+		</>
+	);
+}
+
+const PersistItem = memo(function PersistItem({ item, session, editing }: {
 	item: SessionViewItem;
-}): ReactElement {
+	session: ChatSession;
+	editing?: boolean;
+}) {
 	switch (item.type) {
 		case "user":
-			return <UserMessage images={item.images} text={item.text} timestamp={item.message.timestamp} />
+			return editing
+				? <EditingUserMessage data={item} session={session} />
+				: <UserMessage data={item} session={session} />;
 		case "assistant":
 			return <AssistantMessage text={item.text} thinking={item.thinking} timestamp={item.message.timestamp} usage={item.message.usage} />;
 		case "system":
@@ -86,7 +86,32 @@ function ConversationRenderItem({ isLive, item }: {
 		case "custom":
 			return <ToolMessage label="扩展" text={item.text} />;
 		case "tool-section":
-			return <ToolCallsSection isLive={isLive} toolCalls={item.toolCalls} />;
+			return <ToolCallsSection toolCalls={item.toolCalls} />;
+		default:
+			return null;
 	}
-}
+});
 
+function PersistItems(props: {
+	items: readonly SessionViewItem[];
+	session: ChatSession;
+	editing?: UserViewItem | null;
+}) {
+	const { items, editing, session } = props;
+	return useMemo(() => {
+		const nodes: ReactNode[] = [];
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			const key = getSessionViewItemKey(item);
+			nodes.push(
+				<PersistItem
+					key={key}
+					item={item}
+					session={session}
+					editing={item.type === "user" && editing?.entryId === item.entryId}
+				/>,
+			);
+		}
+		return nodes;
+	}, [items, editing]);
+}

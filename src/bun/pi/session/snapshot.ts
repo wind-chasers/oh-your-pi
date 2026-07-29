@@ -1,7 +1,9 @@
-import type {
-	AgentSession,
-	AgentSessionServices,
-	SessionInfo,
+import {
+	type AgentSession,
+	type AgentSessionServices,
+	sessionEntryToContextMessages,
+	type SessionEntry,
+	type SessionInfo,
 } from "@earendil-works/pi-coding-agent";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { Model, UserMessage } from "@earendil-works/pi-ai";
@@ -9,6 +11,7 @@ import type {
 	PiModel,
 	PiOpenedSession,
 	PiSessionMessage,
+	PiSessionTranscriptEntry,
 	PiSessionRuntimeState,
 	PiSessionSummary,
 } from "@shared/pi-contract";
@@ -21,7 +24,8 @@ export function createPiOpenedSession(options: {
 	workspacePath: string;
 }): PiOpenedSession {
 	const { baseInfo, path, services, session, workspacePath } = options;
-	const messages = toPiSessionMessages(session.messages);
+	const contextEntries = session.sessionManager.buildContextEntries();
+	const entries = toPiSessionTranscriptEntries(contextEntries);
 	return {
 		transcript: {
 			session: {
@@ -29,16 +33,16 @@ export function createPiOpenedSession(options: {
 				path,
 				workspacePath,
 				name: session.sessionName,
-				firstMessage: baseInfo?.firstMessage ?? findFirstUserMessage(messages),
+				firstMessage: baseInfo?.firstMessage ?? getFirstUserMessageText(contextEntries),
 				messageCount: Math.max(
 					baseInfo?.messageCount ?? 0,
 					session.sessionManager.getEntries().length,
 				),
 				modifiedAt: baseInfo?.modified.toISOString() ?? new Date().toISOString(),
 			},
-			messages,
+			entries,
 		},
-		runtime: toPiSessionRuntimeState(session, services, path),
+		runtime: createPiSessionRuntimeState(session, services, path),
 	};
 }
 
@@ -54,23 +58,46 @@ export function toPiSessionSummary(session: SessionInfo): PiSessionSummary {
 	};
 }
 
-export function toPiSessionMessages(
-	messages: AgentMessage[],
-): PiSessionMessage[] {
-	const result: PiSessionMessage[] = [];
-	for (const message of messages) {
-		if (message.role === "custom") {
-			if (message.display) result.push(omitProperty(message, "details"));
-			continue;
+export function isPiSessionTranscriptEntry(entry: SessionEntry): boolean {
+	if (entry.type === "message") {
+		return entry.message.role !== "custom" || entry.message.display;
+	}
+	if (entry.type === "custom_message") return entry.display;
+	return entry.type === "branch_summary" ? Boolean(entry.summary) : entry.type === "compaction";
+}
+
+export function getFirstUserMessageText(entries: readonly SessionEntry[]): string {
+	for (const entry of entries) {
+		if (entry.type === "message" && entry.message.role === "user") {
+			return messageContentToText(entry.message.content);
 		}
-		if (message.role === "toolResult") result.push(omitProperty(message, "details"));
-		else if (message.role === "assistant") result.push(omitProperty(message, "diagnostics"));
-		else result.push(message);
+	}
+	return "";
+}
+
+export function toPiSessionTranscriptEntries(
+	entries: readonly SessionEntry[],
+): PiSessionTranscriptEntry[] {
+	const result: PiSessionTranscriptEntry[] = [];
+	for (const entry of entries) {
+		for (const message of sessionEntryToContextMessages(entry)) {
+			const projected = toPiSessionMessage(message);
+			if (projected) result.push({ id: entry.id, parentId: entry.parentId, message: projected });
+		}
 	}
 	return result;
 }
 
-function toPiSessionRuntimeState(
+function toPiSessionMessage(message: AgentMessage): PiSessionMessage | null {
+	if (message.role === "custom") {
+		return message.display ? omitProperty(message, "details") : null;
+	}
+	if (message.role === "toolResult") return omitProperty(message, "details");
+	if (message.role === "assistant") return omitProperty(message, "diagnostics");
+	return message;
+}
+
+export function createPiSessionRuntimeState(
 	session: AgentSession,
 	services: AgentSessionServices,
 	path: string,
@@ -98,6 +125,7 @@ function toPiModel(model: Model<any>): PiModel {
 	};
 }
 
+
 function omitProperty<Value extends object, Key extends keyof Value>(
 	value: Value,
 	key: Key,
@@ -107,12 +135,6 @@ function omitProperty<Value extends object, Key extends keyof Value>(
 	return result as Omit<Value, Key>;
 }
 
-function findFirstUserMessage(messages: PiSessionMessage[]): string {
-	for (const message of messages) {
-		if (message.role === "user") return messageContentToText(message.content);
-	}
-	return "";
-}
 
 function messageContentToText(content: UserMessage["content"]): string {
 	if (typeof content === "string") return content;

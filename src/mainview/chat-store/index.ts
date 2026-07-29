@@ -12,12 +12,20 @@ export {
 	DEFAULT_SESSION_SWEEP_INTERVAL_MS,
 } from "./types";
 export type {
+	ChatLiveAgentTail,
+	ChatMessageImagePreview,
+	ChatPendingUserMessage,
+	ChatQueuedInputs,
+	ChatQueuedUserInput,
 	ChatSessionActivity,
 	ChatSessionPhase,
 	ChatSessionSnapshot,
+	ChatSessionTransientState,
 	ChatStoreOptions,
 	ChatToolCall,
 	ChatToolExecutionStatus,
+	ChatTranscriptTail,
+	ChatUserInput,
 } from "./types";
 export { ChatWorkspace } from "./workspace";
 
@@ -37,9 +45,9 @@ export function useChatSession(
 	}, [session]);
 
 	const snapshot = useSyncExternalStore(
-		session.subscribe,
-		session.getSnapshot,
-		session.getSnapshot,
+		session.snapshot.subscribe,
+		session.snapshot.get,
+		session.snapshot.get,
 	);
 
 	return [snapshot, session] as const;
