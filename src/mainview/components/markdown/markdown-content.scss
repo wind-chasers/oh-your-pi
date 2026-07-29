@@ -34,9 +34,9 @@
 		max-width: 100%;
 		margin: 16px 0;
 		overflow: hidden;
-		border: 1px solid color-mix(in oklab, currentColor 8%, transparent);
+		border: 1px solid color-mix(in oklab, currentColor 4%, transparent);
 		border-radius: var(--radius);
-		background-color: color-mix(in oklab, currentColor 4%, transparent);
+		background-color: color-mix(in oklab, currentColor 2%, transparent);
 
 		pre {
 			max-width: 100%;
@@ -55,6 +55,7 @@
 			padding: 0;
 		}
 	}
+
 
 	h1,
 	h2,

@@ -1,7 +1,6 @@
-import { Check, CircleX, Copy } from "lucide-react";
+import { ChartNoAxesCombined, Check, CircleX, Code2, Copy } from "lucide-react";
 import {
 	type ComponentPropsWithoutRef,
-	isValidElement,
 	type ReactElement,
 	type ReactNode,
 	useEffect,
@@ -11,13 +10,19 @@ import { Button } from "@view/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@view/components/ui/tooltip";
 import { resolveCodeLanguage } from "../code-view/syntax-languages";
 import { SyntaxHighlightedCode } from "../code-view/syntax-highlighted-code";
+import { MermaidDiagram, MermaidViewportControls, useMermaidViewport } from "@view/components/mermaid";
 
 const COPY_STATUS_DURATION_MS = 2_000;
 
 type CopyStatus = "idle" | "copied" | "failed";
-type MarkdownCodeElementProps = ComponentPropsWithoutRef<"code">;
 type MarkdownPreProps = ComponentPropsWithoutRef<"pre"> & { node?: unknown };
-type MarkdownCodeBlockProps = MarkdownPreProps & { codeHilight: boolean };
+type MarkdownCodeBlockProps = {
+	code: string;
+	language?: string;
+	preProps: MarkdownPreProps;
+	stable?: boolean;
+	className?: string;
+};
 
 type CopyState = {
 	code: string;
@@ -25,30 +30,27 @@ type CopyState = {
 };
 
 type MarkdownCodeHeaderProps = {
+	action?: ReactNode;
 	code: string;
 	languageLabel: string;
 };
 
-export function MarkdownCodeBlock({
-	children,
-	codeHilight,
-	node: _node,
-	...preProps
-}: MarkdownCodeBlockProps): ReactElement {
-	const codeElement = getCodeElement(children);
-	if (!codeElement) return <pre {...preProps}>{children}</pre>;
+type MermaidCodeBlockProps = {
+	code: string;
+	preProps: MarkdownPreProps;
+	children?: ReactNode;
+};
 
-	const { children: codeChildren, className } = codeElement.props;
-	const language = className?.match(/(?:^|\s)language-([^\s]+)/)?.[1];
-	const code = String(codeChildren ?? "").replace(/\n$/, "");
+type MermaidView = "code" | "diagram";
 
+export function CodeBlock({ code, language, stable, preProps, className }: MarkdownCodeBlockProps): ReactElement {
 	return (
 		<div className="markdown-code-block">
 			<MarkdownCodeHeader code={code} languageLabel={getLanguageLabel(language)} />
 			<pre {...preProps}>
 				<SyntaxHighlightedCode
 					className={className}
-					enabled={codeHilight}
+					enabled={stable}
 					language={language}
 					showLineNumbers
 				>
@@ -59,7 +61,57 @@ export function MarkdownCodeBlock({
 	);
 }
 
-function MarkdownCodeHeader({ code, languageLabel }: MarkdownCodeHeaderProps): ReactElement {
+export function MermaidBlock({ code, children, preProps }: MermaidCodeBlockProps): ReactElement {
+	const [view, setView] = useState<MermaidView>("diagram");
+	const isDiagram = view === "diagram";
+	const toggleLabel = isDiagram ? "查看 Mermaid 源码" : "查看 Mermaid 图表";
+	const { panEnabled, reset, togglePan, viewport, zoom, zoomIn, zoomOut } = useMermaidViewport();
+
+	return (
+		<div className="markdown-code-block">
+			<MarkdownCodeHeader
+				action={
+					<>
+						{isDiagram && (
+							<MermaidViewportControls
+								panEnabled={panEnabled}
+								onReset={reset}
+								onTogglePan={togglePan}
+								onZoomIn={zoomIn}
+								onZoomOut={zoomOut}
+								zoom={zoom}
+							/>
+						)}
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									aria-label={toggleLabel}
+									aria-pressed={isDiagram}
+									onClick={() => setView((current) => current === "diagram" ? "code" : "diagram")}
+									size="icon-xs"
+									type="button"
+									variant="ghost"
+								>
+									{isDiagram ? <Code2 aria-hidden /> : <ChartNoAxesCombined aria-hidden />}
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent showArrow={false} side="top">{toggleLabel}</TooltipContent>
+						</Tooltip>
+					</>
+				}
+				code={code}
+				languageLabel={getLanguageLabel('mermaid')}
+			/>
+			{isDiagram ? (
+				<MermaidDiagram code={code} viewport={viewport} />
+			) : (
+				<pre {...preProps}>{children}</pre>
+			)}
+		</div>
+	);
+}
+
+function MarkdownCodeHeader({ action, code, languageLabel }: MarkdownCodeHeaderProps): ReactElement {
 	const [copyState, setCopyState] = useState<CopyState>({ code, status: "idle" });
 	const copyStatus = copyState.code === code ? copyState.status : "idle";
 	const copyLabel = getCopyLabel(copyStatus);
@@ -92,22 +144,25 @@ function MarkdownCodeHeader({ code, languageLabel }: MarkdownCodeHeaderProps): R
 			>
 				{languageLabel}
 			</span>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<Button
-						aria-label={copyLabel}
-						onClick={() => void copyCode()}
-						size="icon-xs"
-						type="button"
-						variant="ghost"
-					>
-						<CopyStatusIcon status={copyStatus} />
-					</Button>
-				</TooltipTrigger>
-				<TooltipContent showArrow={false} side="top">
-					{copyLabel}
-				</TooltipContent>
-			</Tooltip>
+			<div className="flex items-center gap-1">
+				{action}
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							aria-label={copyLabel}
+							onClick={() => void copyCode()}
+							size="icon-xs"
+							type="button"
+							variant="ghost"
+						>
+							<CopyStatusIcon status={copyStatus} />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent showArrow={false} side="top">
+						{copyLabel}
+					</TooltipContent>
+				</Tooltip>
+			</div>
 			<span aria-live="polite" className="sr-only">
 				{copyStatus === "idle" ? "" : copyLabel}
 			</span>
@@ -119,10 +174,6 @@ function CopyStatusIcon({ status }: { status: CopyStatus }): ReactElement {
 	if (status === "copied") return <Check aria-hidden />;
 	if (status === "failed") return <CircleX aria-hidden />;
 	return <Copy aria-hidden />;
-}
-
-function getCodeElement(children: ReactNode): ReactElement<MarkdownCodeElementProps> | undefined {
-	return isValidElement<MarkdownCodeElementProps>(children) && children.type === "code" ? children : undefined;
 }
 
 function getLanguageLabel(language?: string): string {

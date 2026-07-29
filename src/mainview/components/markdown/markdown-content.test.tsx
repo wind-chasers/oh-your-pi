@@ -3,9 +3,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { TooltipProvider } from "@view/components/ui/tooltip";
 import { MarkdownContent } from "./markdown-content";
 
-function renderMarkdown(markdown: string): string {
+function renderMarkdown(markdown: string, { stable = true }: { stable?: boolean } = {}): string {
 	return renderToStaticMarkup(
-		<TooltipProvider><MarkdownContent>{markdown}</MarkdownContent></TooltipProvider>,
+		<TooltipProvider><MarkdownContent stable={stable}>{markdown}</MarkdownContent></TooltipProvider>,
 	);
 }
 
@@ -37,6 +37,21 @@ describe("MarkdownContent", () => {
 		expect(inline).toContain("<code>const value = 1</code>");
 		expect(inline).not.toContain('data-slot="markdown-code-header"');
 		expect(inline).not.toContain("data-language=");
+	});
+
+	test("renders Mermaid diagrams when stable and keeps unstable Mermaid as source", () => {
+		const diagram = renderMarkdown("```mermaid\nflowchart LR\n  A[开始] --> B[结束]\n```");
+		const source = renderMarkdown("```mermaid\nflowchart LR\n  A --> B\n```", { stable: false });
+
+		expect(diagram).toContain('data-slot="mermaid-diagram"');
+		expect(diagram).toContain('aria-label="查看 Mermaid 源码"');
+		expect(diagram).toContain('title="mermaid">mermaid</span>');
+		expect(diagram).toContain('aria-label="放大 5%"');
+		expect(diagram).toContain('aria-label="缩小 5%"');
+		expect(diagram).toContain('aria-label="重置为 100%"');
+		expect(diagram).toContain('aria-label="启用抓手平移"');
+		expect(source).not.toContain('data-slot="mermaid-diagram"');
+		expect(source).toContain('<code class="language-mermaid">flowchart LR');
 	});
 
 	test("does not render raw HTML as executable markup", () => {
