@@ -4,8 +4,14 @@ type Mermaid = typeof mermaid;
 
 let mermaidPromise: Promise<Mermaid> | undefined;
 
-export async function renderMermaidDiagram(id: string, source: string, dark: boolean): Promise<string> {
+export async function renderMermaidDiagram(
+	id: string,
+	source: string,
+	dark: boolean,
+	signal?: AbortSignal
+): Promise<string> {
 	const renderer = await loadMermaid();
+	if (signal?.aborted) return '';
 	renderer.initialize({
 		darkMode: dark,
 		flowchart: { useMaxWidth: false },

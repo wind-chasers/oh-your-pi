@@ -2,6 +2,10 @@ import { type PointerEvent, type ReactElement, useEffect, useId, useRef, useStat
 import { cn } from "@view/lib/utils";
 import type { MermaidOffset, MermaidViewport } from "./use-mermaid-viewport";
 import { renderMermaidDiagram } from "./mermaid-renderer";
+import { LimitQueue } from "@view/lib/limit-queue";
+
+const limiter = new LimitQueue(1, 'macro');
+const NOOP = () => {};
 
 type MermaidRenderState =
 	| { status: "loading" }
@@ -41,19 +45,20 @@ export function MermaidDiagram({ code, viewport }: MermaidDiagramProps): ReactEl
 	}, []);
 
 	useEffect(() => {
-		let active = true;
 		setRenderState({ status: "loading" });
-		void renderMermaidDiagram(`mermaid-${instanceId}`, code, dark).then(
-			(svg) => {
-				if (active) setRenderState({ status: "rendered", svg });
-			},
-			() => {
-				if (active) setRenderState({ status: "error" });
-			},
-		);
-		return () => {
-			active = false;
-		};
+		const task = limiter.run(async (signal) => {
+			try {
+				const svg = await renderMermaidDiagram(`mermaid-${instanceId}`, code, dark, signal);
+				if (signal.aborted) return;
+				setRenderState({ status: "rendered", svg });
+			} catch (error) {
+				if (signal.aborted) return;
+				setRenderState({ status: "error" });
+			}
+		});
+
+		task.catch(NOOP);
+		return () => { task.cancel() };
 	}, [code, dark, instanceId]);
 
 	const offset = viewport?.offset ?? DEFAULT_OFFSET;

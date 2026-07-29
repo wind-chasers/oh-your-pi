@@ -39,9 +39,9 @@ describe("MarkdownContent", () => {
 		expect(inline).not.toContain("data-language=");
 	});
 
-	test("renders Mermaid diagrams when stable and keeps unstable Mermaid as source", () => {
+	test("renders Mermaid diagrams regardless of Markdown stability", () => {
 		const diagram = renderMarkdown("```mermaid\nflowchart LR\n  A[开始] --> B[结束]\n```");
-		const source = renderMarkdown("```mermaid\nflowchart LR\n  A --> B\n```", { stable: false });
+		const unstableDiagram = renderMarkdown("```mermaid\nflowchart LR\n  A --> B\n```", { stable: false });
 
 		expect(diagram).toContain('data-slot="mermaid-diagram"');
 		expect(diagram).toContain('aria-label="查看 Mermaid 源码"');
@@ -50,8 +50,8 @@ describe("MarkdownContent", () => {
 		expect(diagram).toContain('aria-label="缩小 5%"');
 		expect(diagram).toContain('aria-label="重置为 100%"');
 		expect(diagram).toContain('aria-label="启用抓手平移"');
-		expect(source).not.toContain('data-slot="mermaid-diagram"');
-		expect(source).toContain('<code class="language-mermaid">flowchart LR');
+		expect(unstableDiagram).toContain('data-slot="mermaid-diagram"');
+		expect(unstableDiagram).toContain('aria-label="查看 Mermaid 源码"');
 	});
 
 	test("does not render raw HTML as executable markup", () => {

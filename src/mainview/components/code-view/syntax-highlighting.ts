@@ -15,11 +15,16 @@ export type HighlightedCodeResult = {
 const loadingLanguages = new Map<SupportedLanguage, Promise<void>>();
 let highlighterPromise: ReturnType<typeof createHighlighterCore> | undefined;
 
-export async function highlightCode(code: string, language?: string): Promise<HighlightedCodeResult | undefined> {
+export async function highlightCode(
+	code: string,
+	language?: string,
+	signal?: AbortSignal
+): Promise<HighlightedCodeResult | undefined> {
 	const resolvedLanguage = resolveCodeLanguage(language);
 	if (!resolvedLanguage || code.length > MAX_HIGHLIGHT_CHARACTERS) return undefined;
 	await loadLanguage(resolvedLanguage);
 	const highlighter = await getHighlighter();
+	if (signal?.aborted) return;
 	return highlighter.codeToTokens(code, {
 		lang: resolvedLanguage,
 		themes: {

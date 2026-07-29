@@ -1,10 +1,13 @@
 import { type CSSProperties, Fragment, memo, type MouseEvent, type ReactElement, type ReactNode, useEffect, useState } from "react";
 import { cn } from "@view/lib/utils";
 import { resolveCodeLanguage } from "./syntax-languages";
+import { LimitQueue } from '@view/lib/limit-queue';
 import type { HighlightedCodeResult } from "./syntax-highlighting";
 import "./syntax-highlighted-code.scss";
 
 const MAX_INTERACTIVE_LINES = 2_000;
+const NOOP = () => {};
+const limiter = new LimitQueue(2, 'macro');
 
 type SyntaxHighlightedCodeProps = {
 	children: string;
@@ -49,18 +52,17 @@ export const SyntaxHighlightedCode = memo(function SyntaxHighlightedCode({
 
 	useEffect(() => {
 		if (!enabled || !resolvedLanguage) return;
-		let active = true;
-		void import("./syntax-highlighting")
-			.then(({ highlightCode }) => highlightCode(children, resolvedLanguage))
-			.then(
-				(result) => {
-					if (active && result) setHighlightState({ code: children, language: resolvedLanguage, result });
-				},
-				() => undefined,
-			);
-		return () => {
-			active = false;
-		};
+
+		const task = limiter.run(async (signal) => {
+			const { highlightCode } = await import("./syntax-highlighting");
+			if (signal.aborted) return;
+			const result = await highlightCode(children, resolvedLanguage, signal);
+			if (!result || signal.aborted) return;
+			setHighlightState({ code: children, language: resolvedLanguage, result });
+		});
+
+		task.catch(NOOP);
+		return () => { task.cancel() };
 	}, [children, enabled, resolvedLanguage]);
 
 	return (
