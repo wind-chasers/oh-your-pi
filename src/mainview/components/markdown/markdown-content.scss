@@ -29,6 +29,52 @@
 		font-size: 0.9em;
 	}
 
+	.markdown-code-block {
+		min-width: 0;
+		max-width: 100%;
+		margin: 16px 0;
+		overflow: hidden;
+		border: 1px solid color-mix(in oklab, currentColor 4%, transparent);
+		border-radius: var(--radius);
+		background-color: color-mix(in oklab, currentColor 2%, transparent);
+
+		pre {
+			max-width: 100%;
+			margin: 0;
+			overflow: auto;
+			border: 0;
+			border-radius: 0;
+			background-color: transparent;
+			padding: 14px 16px;
+			line-height: 1.55;
+		}
+
+		code {
+			border-radius: 0;
+			background-color: transparent;
+			padding: 0;
+		}
+	}
+
+	&[data-inverted] .markdown-code-block {
+		--border: color-mix(in oklab, currentColor 12%, transparent);
+		--foreground: currentColor;
+		--muted: color-mix(in oklab, currentColor 10%, transparent);
+		--muted-foreground: currentColor;
+		--ring: currentColor;
+
+		[data-slot="markdown-code-header"] {
+			background-color: color-mix(in oklab, currentColor 4%, transparent);
+			color: color-mix(in oklab, currentColor 72%, transparent);
+		}
+
+		[data-slot="button"][data-variant="default"] {
+			background-color: color-mix(in oklab, currentColor 14%, transparent);
+			color: inherit;
+		}
+	}
+
+
 	h1,
 	h2,
 	h3 {
@@ -53,8 +99,8 @@
 	}
 
 	hr {
-		margin: 20px 0;
-		border-color: color-mix(in oklab, currentColor 16%, transparent);
+		margin: 0;
+		border-color: color-mix(in oklab, currentColor 8%, transparent);
 	}
 
 	li {
@@ -80,21 +126,6 @@
 
 		&:last-child {
 			margin-bottom: 0;
-		}
-	}
-
-	pre {
-		margin: 16px 0;
-		overflow-x: auto;
-		border: 1px solid color-mix(in oklab, currentColor 16%, transparent);
-		border-radius: var(--radius);
-		background-color: color-mix(in oklab, currentColor 8%, transparent);
-		padding: 14px 16px;
-		line-height: 1.55;
-
-		code {
-			background-color: transparent;
-			padding: 0;
 		}
 	}
 

@@ -1,14 +1,19 @@
 import type {
 	PiOpenedSession,
 	PiImageAttachment,
+	PiSessionDeleteRequest,
 	PiSessionAbortRequest,
 	PiSessionCommand,
+	PiQueuedSessionCommand,
 	PiSessionEvent as AppSessionEvent,
 	PiSessionModelRequest,
 	PiSessionRuntimeState,
+	PiSessionRegenerateRequest,
 	PiSessionSummary,
 	PiSessionThinkingRequest,
 	PiSessionTranscript,
+	PiSessionRenameRequest,
+	PiSessionRenameResult,
 	PiSessionTranscriptRequest,
 	PiToolPermissionRequest,
 	PiToolPermissionResolution,
@@ -75,22 +80,35 @@ export class SessionApplication {
 		return session.getSnapshot();
 	}
 
+	async rename(input: PiSessionRenameRequest): Promise<PiSessionRenameResult> {
+		const name = input.name.trim();
+		if (!name) throw new Error("会话名称不能为空。");
+		const workspace = await this.pi.openWorkspace(input.workspacePath);
+		return workspace.renameSession(input.sessionPath, name);
+	}
+
+	async delete(input: PiSessionDeleteRequest): Promise<void> {
+		const workspace = await this.pi.openWorkspace(input.workspacePath);
+		const sessionPath = await workspace.deleteSession(input.sessionPath);
+		this.detachSession(sessionPath);
+	}
+
 	async inspectImageAttachments(paths: readonly string[]): Promise<PiImageAttachment[]> {
 		return inspectPiImageAttachments(paths);
 	}
 
-	async setModel(input: PiSessionModelRequest): Promise<PiOpenedSession> {
+	async setModel(input: PiSessionModelRequest): Promise<PiSessionRuntimeState> {
 		const session = this.pi.getSession(input.sessionPath);
 		this.requireIdle(session);
 		await session.setModel(input.provider, input.modelId);
-		return session.getSnapshot();
+		return session.getRuntimeState();
 	}
 
-	async setThinking(input: PiSessionThinkingRequest): Promise<PiOpenedSession> {
+	async setThinking(input: PiSessionThinkingRequest): Promise<PiSessionRuntimeState> {
 		const session = this.pi.getSession(input.sessionPath);
 		this.requireIdle(session);
 		session.setThinking(input.thinkingLevel);
-		return session.getSnapshot();
+		return session.getRuntimeState();
 	}
 
 	async prompt(input: PiSessionCommand): Promise<PiSessionRuntimeState> {
@@ -101,27 +119,40 @@ export class SessionApplication {
 			await session.requireResolvedAuthentication();
 			this.recovery.promptStarted(session.path);
 			await session.prompt(input.text, input.images);
-			return session.getSnapshot().runtime;
+			return session.getRuntimeState();
 		});
 	}
 
-	async steer(input: PiSessionCommand): Promise<PiSessionRuntimeState> {
+	async regenerate(input: PiSessionRegenerateRequest): Promise<void> {
 		const session = this.pi.getSession(input.sessionPath);
-		await session.steer(input.text, input.images);
-		return session.getSnapshot().runtime;
+		this.requireIdle(session);
+		const provider = session.provider;
+		if (!provider) throw new Error("当前 Pi 会话没有可用模型。请检查认证或模型配置。");
+		return this.authentication.withProviderOperation(provider, async () => {
+			await session.requireResolvedAuthentication();
+			this.requireIdle(session);
+			this.recovery.promptStarted(session.path);
+			return session.regenerate(input.clientId, input.entryId, input.text, input.images);
+		});
 	}
 
-	async followUp(input: PiSessionCommand): Promise<PiSessionRuntimeState> {
+	async steer(input: PiQueuedSessionCommand): Promise<PiSessionRuntimeState> {
 		const session = this.pi.getSession(input.sessionPath);
-		await session.followUp(input.text, input.images);
-		return session.getSnapshot().runtime;
+		await session.steer(input.clientId, input.text, input.images);
+		return session.getRuntimeState();
+	}
+
+	async followUp(input: PiQueuedSessionCommand): Promise<PiSessionRuntimeState> {
+		const session = this.pi.getSession(input.sessionPath);
+		await session.followUp(input.clientId, input.text, input.images);
+		return session.getRuntimeState();
 	}
 
 	async abort(input: PiSessionAbortRequest): Promise<PiSessionRuntimeState> {
 		const session = this.pi.getSession(input.sessionPath);
 		await session.abort();
 		this.recovery.clear(session.path);
-		return session.getSnapshot().runtime;
+		return session.getRuntimeState();
 	}
 
 	respondPermission(input: PiToolPermissionResponse): PiToolPermissionResolution {
@@ -176,6 +207,13 @@ export class SessionApplication {
 
 	private emit(event: AppSessionEvent): void {
 		for (const listener of this.listeners) listener(event);
+	}
+
+	private detachSession(sessionPath: string): void {
+		this.sessionSubscriptions.get(sessionPath)?.();
+		this.sessionSubscriptions.delete(sessionPath);
+		this.permissions.resetSession(sessionPath);
+		this.recovery.clear(sessionPath);
 	}
 
 	private requireIdle(session: PiSession): void {

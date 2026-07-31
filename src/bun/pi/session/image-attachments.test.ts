@@ -11,8 +11,6 @@ const imagePath = resolve(import.meta.dir, "../../../../assets/app-icon.png");
 test("生成 Renderer 预览并编码为 Pi 图片内容", async () => {
 	const [preview] = await inspectPiImageAttachments([imagePath]);
 	expect(preview.name).toBe("app-icon.png");
-	expect(preview.width).toBeGreaterThan(0);
-	expect(preview.height).toBeGreaterThan(0);
 	expect(preview.previewDataUrl).toStartWith("data:image/webp;base64,");
 
 	const [content] = await loadPiImageAttachments([preview.source]);

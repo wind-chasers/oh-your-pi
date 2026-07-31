@@ -8,6 +8,20 @@ export function toAppSessionEvents(
 	if (event.type === "error") {
 		return [{ sessionPath, type: "error", errorMessage: event.error.message }];
 	}
+	if (event.type === "regeneration_failed") {
+		return [{
+			sessionPath,
+			type: event.type,
+			clientId: event.clientId,
+			errorMessage: event.error.message,
+		}];
+	}
+	if (event.type === "transcript_entries_appended" || event.type === "transcript_rebased") {
+		return [{ sessionPath, ...event }];
+	}
+	if (event.type === "queued_inputs_cleared") {
+		return [{ sessionPath, ...event }];
+	}
 	if (event.type === "message_update") {
 		if (event.assistantMessageEvent.type === "text_delta") {
 			return [{ sessionPath, type: "text_delta", delta: event.assistantMessageEvent.delta }];

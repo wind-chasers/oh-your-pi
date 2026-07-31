@@ -54,7 +54,7 @@ function SelectTrigger({
       {children}
       {indicator === "none" ? null : (
         <SelectPrimitive.Icon asChild>
-          <IndicatorIcon className="pointer-events-none size-4 text-muted-foreground" />
+          <IndicatorIcon className="pointer-events-none size-3 text-muted-foreground" />
         </SelectPrimitive.Icon>
       )}
     </SelectPrimitive.Trigger>

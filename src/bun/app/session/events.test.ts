@@ -53,3 +53,51 @@ test("只投影 Renderer 需要的增量与错误", () => {
 		errorMessage: "failed",
 	}]);
 });
+
+test("持久 transcript 变更直接透传 entry 增量", () => {
+	const entries = [{
+		id: "entry-1",
+		parentId: null,
+		message: { role: "user" as const, content: "hello", timestamp: 0 },
+	}];
+	const update = {
+		confirmedInputs: [],
+		firstMessage: "hello",
+		messageCount: 1,
+		modifiedAt: "2026-07-29T00:00:00.000Z",
+	};
+	expect(toAppSessionEvents(sessionPath, {
+		type: "transcript_entries_appended",
+		entries,
+		...update,
+	})).toEqual([{
+		sessionPath,
+		type: "transcript_entries_appended",
+		entries,
+		...update,
+	}]);
+});
+
+test("队列清理事件携带精确 clientId", () => {
+	expect(toAppSessionEvents(sessionPath, {
+		type: "queued_inputs_cleared",
+		clientIds: ["s1", "f1"],
+	})).toEqual([{
+		sessionPath,
+		type: "queued_inputs_cleared",
+		clientIds: ["s1", "f1"],
+	}]);
+});
+
+test("重新生成失败事件保留 clientId", () => {
+	expect(toAppSessionEvents(sessionPath, {
+		type: "regeneration_failed",
+		clientId: "regenerate-1",
+		error: new Error("没有生成用户消息"),
+	})).toEqual([{
+		sessionPath,
+		type: "regeneration_failed",
+		clientId: "regenerate-1",
+		errorMessage: "没有生成用户消息",
+	}]);
+});

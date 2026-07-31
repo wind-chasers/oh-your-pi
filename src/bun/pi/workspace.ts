@@ -10,13 +10,14 @@ import type {
 	PiResourceDiagnostic,
 	PiResourceItem,
 	PiSessionSummary,
+	PiOpenedSession,
 	PiSessionTranscript,
 } from "@shared/pi-contract";
 import { PiSessionRegistry } from "./session/registry";
 import {
 	PiSession,
 	type PiSessionHooks,
-	toPiSessionMessages,
+	toPiSessionTranscriptEntries,
 	toPiSessionSummary,
 } from "./session";
 
@@ -96,11 +97,32 @@ export class PiWorkspace {
 
 	async readSession(sessionPath: string): Promise<PiSessionTranscript> {
 		const info = await this.findSession(sessionPath);
-		const messages = SessionManager.open(info.path).buildSessionContext().messages;
+		const manager = SessionManager.open(info.path);
 		return {
 			session: toPiSessionSummary(info),
-			messages: toPiSessionMessages(messages),
+			entries: toPiSessionTranscriptEntries(manager.buildContextEntries()),
 		};
+	}
+
+	async renameSession(sessionPath: string, name: string): Promise<{
+		session: PiSessionSummary;
+		openedSession?: PiOpenedSession;
+	}> {
+		const info = await this.findSession(sessionPath);
+		const openedSession = this.sessions.find(info.path);
+		if (openedSession) {
+			openedSession.setName(name);
+			const snapshot = openedSession.getSnapshot();
+			return { session: snapshot.transcript.session, openedSession: snapshot };
+		}
+		SessionManager.open(info.path).appendSessionInfo(name);
+		return { session: toPiSessionSummary(await this.findSession(info.path)) };
+	}
+
+	async deleteSession(sessionPath: string): Promise<string> {
+		const info = await this.findSession(sessionPath);
+		await this.sessions.delete(info.path);
+		return info.path;
 	}
 
 	async openSession(sessionPath: string, hooks: PiSessionHooks): Promise<PiSession> {

@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import { toPiSessionMessages } from "./snapshot";
+import { toPiSessionTranscriptEntries } from "./snapshot";
 
 const usage = {
 	cacheRead: 0,
@@ -46,11 +47,15 @@ test("直接保留 Pi 消息并移除 arbitrary details", () => {
 		},
 	];
 
-	const result = toPiSessionMessages(messages);
+	const manager = SessionManager.inMemory();
+	for (const message of messages) {
+		manager.appendMessage(message as Parameters<SessionManager["appendMessage"]>[0]);
+	}
+	const result = toPiSessionTranscriptEntries(manager.buildContextEntries());
 	expect(result).toHaveLength(2);
 	expect(() => JSON.stringify(result)).not.toThrow();
-	expect("diagnostics" in result[0]).toBe(false);
-	expect(result[1]).toEqual({
+	expect("diagnostics" in result[0].message).toBe(false);
+	expect(result[1].message).toEqual({
 		content: [{ type: "text", text: "{\"ready\":true}" }],
 		isError: false,
 		role: "toolResult",
@@ -58,4 +63,17 @@ test("直接保留 Pi 消息并移除 arbitrary details", () => {
 		toolCallId: "read-1",
 		toolName: "read",
 	});
+});
+
+test("持久消息携带稳定的 session entry ID", () => {
+	const message = { role: "user", content: "修改这条消息", timestamp: 0 } as const;
+	const manager = SessionManager.inMemory();
+	const entryId = manager.appendMessage(message);
+
+	const entries = toPiSessionTranscriptEntries(manager.buildContextEntries());
+	expect(entries).toEqual([{
+		id: entryId,
+		parentId: null,
+		message,
+	}]);
 });

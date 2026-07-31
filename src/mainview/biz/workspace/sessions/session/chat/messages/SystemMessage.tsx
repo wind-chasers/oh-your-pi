@@ -1,5 +1,5 @@
 import { type ReactElement } from "react";
-import { MarkdownContent } from "@view/components/markdown-content";
+import { MarkdownContent } from "@view/components/markdown/markdown-content";
 type SystemMessageProps = { text: string };
 
 export function SystemMessage({ text }: SystemMessageProps): ReactElement {

@@ -8,12 +8,17 @@ import type {
 	PiOpenedSession,
 	PiImageAttachment,
 	PiSessionAbortRequest,
+	PiSessionDeleteRequest,
 	PiSessionModelRequest,
 	PiSessionCommand,
+	PiQueuedSessionCommand,
 	PiSessionEvent,
+	PiSessionRegenerateRequest,
 	PiSessionRuntimeState,
 	PiSessionThinkingRequest,
 	PiSessionTranscript,
+	PiSessionRenameRequest,
+	PiSessionRenameResult,
 	PiSessionTranscriptRequest,
 	PiWorkspacePickerResult,
 	PiWorkspaceRequest,
@@ -25,6 +30,8 @@ import type {
 	PiWorkspaceFile,
 	PiWorkspaceFileContent,
 	PiWorkspaceFileRequest,
+	PiWorkspaceGit,
+	PiWorkspaceGitBranchRequest,
 } from "./pi-contract";
 
 export interface PiRpcSchema extends ElectrobunRPCSchema {
@@ -38,17 +45,23 @@ export interface PiRpcSchema extends ElectrobunRPCSchema {
 			refreshWorkspaceResources: { params: PiWorkspaceRequest; response: PiWorkspaceRefreshResult };
 			chooseWorkspace: { params: Record<string, never>; response: PiWorkspacePickerResult };
 			chooseImageAttachments: { params: Record<string, never>; response: PiImageAttachment[] };
-				listWorkspaceFiles: { params: PiWorkspaceFileRequest; response: PiWorkspaceFile[] };
-				readWorkspaceFile: { params: PiWorkspaceFileRequest; response: PiWorkspaceFileContent };
+			listWorkspaceFiles: { params: PiWorkspaceFileRequest; response: PiWorkspaceFile[] };
+			readWorkspaceFile: { params: PiWorkspaceFileRequest; response: PiWorkspaceFileContent };
+			openWorkspaceFolder: { params: PiWorkspaceRequest; response: void };
+			inspectWorkspaceGit: { params: PiWorkspaceRequest; response: PiWorkspaceGit | null };
+			switchWorkspaceGitBranch: { params: PiWorkspaceGitBranchRequest; response: PiWorkspaceGit };
 			readSessionTranscript: { params: PiSessionTranscriptRequest; response: PiSessionTranscript };
 			openSession: { params: PiSessionTranscriptRequest; response: PiOpenedSession };
+			renameSession: { params: PiSessionRenameRequest; response: PiSessionRenameResult };
+			deleteSession: { params: PiSessionDeleteRequest; response: void };
 			createSession: { params: PiWorkspaceRequest; response: PiOpenedSession };
 			continueRecentSession: { params: PiWorkspaceRequest; response: PiOpenedSession };
-			setSessionModel: { params: PiSessionModelRequest; response: PiOpenedSession };
-			setSessionThinking: { params: PiSessionThinkingRequest; response: PiOpenedSession };
+			setSessionModel: { params: PiSessionModelRequest; response: PiSessionRuntimeState };
+			setSessionThinking: { params: PiSessionThinkingRequest; response: PiSessionRuntimeState };
 			promptSession: { params: PiSessionCommand; response: PiSessionRuntimeState };
-			steerSession: { params: PiSessionCommand; response: PiSessionRuntimeState };
-			followUpSession: { params: PiSessionCommand; response: PiSessionRuntimeState };
+			regenerateSessionMessage: { params: PiSessionRegenerateRequest; response: void };
+			steerSession: { params: PiQueuedSessionCommand; response: PiSessionRuntimeState };
+			followUpSession: { params: PiQueuedSessionCommand; response: PiSessionRuntimeState };
 			abortSession: { params: PiSessionAbortRequest; response: PiSessionRuntimeState };
 			respondToolPermission: { params: PiToolPermissionResponse; response: PiToolPermissionResolution };
 		};
@@ -57,6 +70,7 @@ export interface PiRpcSchema extends ElectrobunRPCSchema {
 	webview: {
 		requests: {};
 		messages: {
+			openAppSettings: Record<string, never>;
 			sessionEvent: PiSessionEvent;
 			authenticationEvent: PiAuthenticationEvent;
 			toolPermissionRequest: PiToolPermissionRequest;

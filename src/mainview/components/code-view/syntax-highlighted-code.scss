@@ -1,0 +1,81 @@
+.syntax-highlighted-code {
+	display: block;
+	min-width: 100%;
+	width: max-content;
+	tab-size: 4;
+}
+
+.syntax-highlighted-line {
+	position: relative;
+	display: inline-block;
+	min-width: 100%;
+	border-radius: calc(var(--radius) * 0.5);
+	padding-right: 0.5rem;
+	padding-left: calc(var(--code-line-number-digits, 1) * 1ch + 1.5rem);
+	cursor: text;
+	transition: background-color 120ms ease, box-shadow 120ms ease;
+
+	&::before {
+		position: absolute;
+		left: 0;
+		width: calc(var(--code-line-number-digits, 1) * 1ch + 1.5rem);
+		box-sizing: border-box;
+		padding-right: 0.75rem;
+		color: color-mix(in oklab, currentColor 38%, transparent);
+		content: attr(data-line);
+		text-align: right;
+		user-select: none;
+	}
+
+	&:empty::after {
+		content: "\200B";
+	}
+
+	&:hover {
+		background-color: color-mix(in oklab, currentColor 4%, transparent);
+	}
+
+	&:focus {
+		outline: none;
+		background-color: color-mix(in oklab, currentColor 7%, transparent);
+		box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ring) 35%, transparent);
+	}
+}
+
+.syntax-highlighted-token {
+	color: var(--shiki-light, inherit);
+	background-color: var(--shiki-light-bg, transparent);
+	font-style: var(--shiki-light-font-style, inherit);
+	font-weight: var(--shiki-light-font-weight, inherit);
+	text-decoration: var(--shiki-light-text-decoration, inherit);
+}
+
+.dark .syntax-highlighted-token {
+	color: var(--shiki-dark, inherit);
+	background-color: var(--shiki-dark-bg, transparent);
+	font-style: var(--shiki-dark-font-style, inherit);
+	font-weight: var(--shiki-dark-font-weight, inherit);
+	text-decoration: var(--shiki-dark-text-decoration, inherit);
+}
+
+:root:not(.dark) .syntax-highlighted-code-inverted .syntax-highlighted-token {
+	color: var(--shiki-dark, inherit);
+	background-color: var(--shiki-dark-bg, transparent);
+	font-style: var(--shiki-dark-font-style, inherit);
+	font-weight: var(--shiki-dark-font-weight, inherit);
+	text-decoration: var(--shiki-dark-text-decoration, inherit);
+}
+
+.dark .syntax-highlighted-code-inverted .syntax-highlighted-token {
+	color: var(--shiki-light, inherit);
+	background-color: var(--shiki-light-bg, transparent);
+	font-style: var(--shiki-light-font-style, inherit);
+	font-weight: var(--shiki-light-font-weight, inherit);
+	text-decoration: var(--shiki-light-text-decoration, inherit);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.syntax-highlighted-line {
+		transition: none;
+	}
+}

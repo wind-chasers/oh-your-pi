@@ -1,5 +1,5 @@
 import { type ReactElement } from "react";
-import { MarkdownContent } from "@view/components/markdown-content";
+import { MarkdownContent } from "@view/components/markdown/markdown-content";
 type ToolMessageProps = { label: string; text: string };
 
 export function ToolMessage({ label, text }: ToolMessageProps): ReactElement {

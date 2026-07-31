@@ -11,13 +11,32 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { ImageContent } from "@earendil-works/pi-ai";
-import type { PiImageAttachmentSource, PiOpenedSession } from "@shared/pi-contract";
+import type {
+	PiImageAttachmentSource,
+	PiOpenedSession,
+	PiSessionRuntimeState,
+	PiSessionTranscriptUpdate,
+} from "@shared/pi-contract";
 import { PiError, toError } from "../errors";
 import { createSessionExtensionFactories, type PiSessionHooks } from "./hooks";
 import { loadPiImageAttachments } from "./image-attachments";
-import { createPiOpenedSession } from "./snapshot";
+import { QueuedInputTracker } from "./queued-input-tracker";
+import {
+	createPiOpenedSession,
+	createPiSessionRuntimeState,
+	getFirstUserMessageText,
+	isPiSessionTranscriptEntry,
+	toPiSessionTranscriptEntries,
+} from "./snapshot";
 
-export type PiSessionEvent = AgentSessionEvent | { type: "error"; error: Error };
+export type PiSessionEvent =
+	| AgentSessionEvent
+	| ({ type: "transcript_entries_appended" } & PiSessionTranscriptUpdate)
+	| ({ type: "transcript_rebased"; replaceFrom: number } & PiSessionTranscriptUpdate)
+	| { type: "regeneration_failed"; clientId: string; error: Error }
+	| { type: "error"; error: Error }
+	| { type: "queued_inputs_cleared"; clientIds: string[] };
+
 
 type CreatePiSessionOptions = {
 	agentDir: string;
@@ -35,6 +54,9 @@ export class PiSession {
 	private services: AgentSessionServices | undefined;
 	private sessionPath: string | undefined;
 	private unsubscribeAgent: (() => void) | undefined;
+	private publishedTranscriptIds: string[] = [];
+	private transcriptPublishScheduled = false;
+	private readonly queuedInputs = new QueuedInputTracker();
 
 	private constructor(private readonly options: CreatePiSessionOptions) {}
 
@@ -71,6 +93,14 @@ export class PiSession {
 		});
 	}
 
+	getRuntimeState(): PiSessionRuntimeState {
+		return createPiSessionRuntimeState(
+			this.requireAgentSession(),
+			this.requireServices(),
+			this.path,
+		);
+	}
+
 	async setModel(provider: string, modelId: string): Promise<void> {
 		const model = this.requireServices().modelRuntime.getModel(provider, modelId);
 		if (!model) throw new Error("所选模型不在当前 Pi 配置中。");
@@ -81,24 +111,83 @@ export class PiSession {
 		this.requireAgentSession().setThinkingLevel(level);
 	}
 
+	setName(name: string): void {
+		this.requireAgentSession().setSessionName(name);
+	}
+
 	async prompt(text: string, imageSources: readonly PiImageAttachmentSource[] = []): Promise<void> {
 		const session = this.requireAgentSession();
 		const images = await this.prepareImages(imageSources);
 		await submitSessionPrompt(session, text, images, (error) => {
 			this.emit({ type: "error", error });
+		}).accepted;
+	}
+
+	private regenerationId?: string | undefined;
+	async regenerate(
+		clientId: string,
+		entryId: string,
+		text: string,
+		imageSources: readonly PiImageAttachmentSource[] = [],
+	): Promise<void> {
+		const session = this.requireAgentSession();
+		const previousLeafId = session.sessionManager.getLeafId();
+		if (!previousLeafId) {
+			throw new Error("Pi 会话没有可恢复的活动分支，无法重新生成历史消息。");
+		}
+		const images = await this.prepareImages(imageSources);
+		await navigateToUserMessageForRegeneration(session, entryId);
+		this.regenerationId = clientId;
+		const submission = submitSessionPrompt(session, text, images, (error) => {
+			this.emit({ type: "error", error });
+		});
+		try {
+			await submission.accepted;
+		} catch (error) {
+			this.regenerationId = undefined;
+			await session.navigateTree(previousLeafId, { summarize: false });
+			throw error;
+		}
+		submission.completion.then(async (error) => {
+			if (!this.regenerationId) return;
+			this.regenerationId = undefined;
+			const restoration = await session.navigateTree(previousLeafId, { summarize: false }).catch((restoreError) => {
+				error = toError(restoreError, "重新生成失败，且无法恢复原分支。");
+			});
+			this.publishTranscriptChanges(session);
+			if (restoration?.cancelled) error = new Error("Pi 扩展取消了原分支恢复。");
+			else error ??= new Error("Pi 扩展处理了输入，但没有生成用户消息。");
+			this.emit({ type: "regeneration_failed", clientId, error });
 		});
 	}
 
-	async steer(text: string, imageSources: readonly PiImageAttachmentSource[] = []): Promise<void> {
-		await this.requireAgentSession().steer(text, await this.prepareImages(imageSources));
+	async steer(
+		clientId: string,
+		text: string,
+		imageSources: readonly PiImageAttachmentSource[] = [],
+	): Promise<void> {
+		const session = this.requireAgentSession();
+		const images = await this.prepareImages(imageSources);
+		await this.queuedInputs.enqueue("steering", clientId, () => session.steer(text, images), images);
 	}
 
-	async followUp(text: string, imageSources: readonly PiImageAttachmentSource[] = []): Promise<void> {
-		await this.requireAgentSession().followUp(text, await this.prepareImages(imageSources));
+	async followUp(
+		clientId: string,
+		text: string,
+		imageSources: readonly PiImageAttachmentSource[] = [],
+	): Promise<void> {
+		const session = this.requireAgentSession();
+		const images = await this.prepareImages(imageSources);
+		await this.queuedInputs.enqueue("followUp", clientId, () => session.followUp(text, images), images);
 	}
 
 	async abort(): Promise<void> {
-		await this.requireAgentSession().abort();
+		const session = this.requireAgentSession();
+		const clientIds = this.queuedInputs.clear(() => session.clearQueue());
+		if (clientIds.length > 0) {
+			this.emit({ type: "queued_inputs_cleared", clientIds });
+		}
+		await session.abort();
 	}
 
 	async requireResolvedAuthentication(): Promise<void> {
@@ -116,6 +205,7 @@ export class PiSession {
 			throw new Error("Pi 无法恢复 OAuth 失败前的用户消息；请重新发送。");
 		}
 		await session.navigateTree(failed.parentId, { summarize: false });
+		this.publishTranscriptChanges(session);
 	}
 
 	async continue(): Promise<void> {
@@ -130,6 +220,7 @@ export class PiSession {
 		if (selectedEntryId && hasTreeEntry(this.requireAgentSession().sessionManager.getTree(), selectedEntryId)) {
 			await this.requireAgentSession().navigateTree(selectedEntryId, { summarize: false });
 		}
+		this.syncPublishedTranscript(this.requireAgentSession());
 	}
 
 	subscribe(listener: (event: PiSessionEvent) => void): () => void {
@@ -158,7 +249,9 @@ export class PiSession {
 		this.agentSession = session;
 		this.sessionPath = requireSessionPath(session);
 		await session.bindExtensions({});
-		this.unsubscribeAgent = session.subscribe((event) => this.emit(event));
+		this.syncPublishedTranscript(session);
+		this.unsubscribeAgent = session.subscribe((event) => this.handleAgentEvent(session, event));
+		this.queuedInputs.reset(session.getSteeringMessages(), session.getFollowUpMessages());
 	}
 
 	private async disposeRuntime(): Promise<void> {
@@ -170,6 +263,7 @@ export class PiSession {
 		this.services = undefined;
 		await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
 		session.dispose();
+		this.queuedInputs.reset([], []);
 	}
 
 	private async prepareImages(
@@ -181,6 +275,73 @@ export class PiSession {
 			throw new Error("当前模型不支持图片输入。");
 		}
 		return loadPiImageAttachments(imageSources);
+	}
+
+	private handleAgentEvent(session: AgentSession, event: AgentSessionEvent): void {
+		const clientIds = this.queuedInputs.acceptAgentEvent(event);
+		if (clientIds.length > 0) {
+			this.emit({ type: "queued_inputs_cleared", clientIds });
+		}
+		this.emit(event);
+		if (
+			(event.type === "message_end" && event.message.role === "user")
+			|| event.type === "agent_settled"
+		) {
+			this.scheduleTranscriptPublish(session);
+		}
+	}
+
+	private scheduleTranscriptPublish(session: AgentSession): void {
+		if (this.transcriptPublishScheduled) return;
+		this.transcriptPublishScheduled = true;
+		queueMicrotask(() => {
+			this.transcriptPublishScheduled = false;
+			if (this.disposed || this.agentSession !== session) return;
+			this.publishTranscriptChanges(session);
+		});
+	}
+
+	private publishTranscriptChanges(session: AgentSession): void {
+		const allEntries = session.sessionManager.getEntries();
+		const contextEntries = session.sessionManager.buildContextEntries()
+			.filter(isPiSessionTranscriptEntry);
+		const nextIds = contextEntries.map((entry) => entry.id);
+		const replaceFrom = commonPrefixLength(this.publishedTranscriptIds, nextIds);
+		if (
+			replaceFrom === this.publishedTranscriptIds.length
+			&& replaceFrom === nextIds.length
+		) return;
+		const lastEntry = allEntries[allEntries.length - 1];
+		const changedEntries = contextEntries.slice(replaceFrom);
+		const confirmedInputs = this.queuedInputs.confirmPersistedEntries(changedEntries);
+		if (this.regenerationId) {
+			for (let index = changedEntries.length - 1; index >= 0; index -= 1) {
+				const entry = changedEntries[index];
+				if (entry.type === "message" && entry.message.role === "user") {
+					confirmedInputs.push({ clientId: this.regenerationId, entryId: entry.id });
+					this.regenerationId = undefined;
+					break;
+				}
+			}
+		}
+		const update = {
+			entries: toPiSessionTranscriptEntries(changedEntries),
+			confirmedInputs,
+			firstMessage: getFirstUserMessageText(allEntries),
+			messageCount: allEntries.length,
+			modifiedAt: lastEntry?.timestamp ?? new Date().toISOString(),
+		};
+		const appendOnly = replaceFrom === this.publishedTranscriptIds.length;
+		this.publishedTranscriptIds = nextIds;
+		this.emit(appendOnly
+			? { type: "transcript_entries_appended", ...update }
+			: { type: "transcript_rebased", replaceFrom, ...update });
+	}
+
+	private syncPublishedTranscript(session: AgentSession): void {
+		this.publishedTranscriptIds = session.sessionManager.buildContextEntries()
+			.filter(isPiSessionTranscriptEntry)
+			.map((entry) => entry.id);
 	}
 
 	private emit(event: PiSessionEvent): void {
@@ -198,14 +359,29 @@ export class PiSession {
 	}
 }
 
-export async function submitSessionPrompt(
+export async function navigateToUserMessageForRegeneration(
+	session: Pick<AgentSession, "navigateTree" | "sessionManager">,
+	entryId: string,
+): Promise<void> {
+	const entry = session.sessionManager.getEntry(entryId);
+	if (entry?.type !== "message" || entry.message.role !== "user") {
+		throw new Error("要重新生成的消息不是该会话中的用户消息。");
+	}
+	if (session.sessionManager.getLeafId() === entryId) {
+		throw new Error("该用户消息尚无后续回复，无法重新生成。");
+	}
+	const result = await session.navigateTree(entryId, { summarize: false });
+	if (result.cancelled) throw new Error("Pi 扩展取消了历史消息编辑。");
+}
+
+export function submitSessionPrompt(
 	session: Pick<AgentSession, "prompt">,
 	text: string,
 	images: ImageContent[] | undefined,
 	onError: (error: Error) => void,
-): Promise<void> {
+) {
 	const { promise: accepted, reject, resolve } = Promise.withResolvers<void>();
-	void session.prompt(text, {
+	const completion = session.prompt(text, {
 		images,
 		preflightResult: (success) => {
 			if (success) resolve();
@@ -215,8 +391,16 @@ export async function submitSessionPrompt(
 		const promptError = toError(error, "Pi 会话运行失败。");
 		onError(promptError);
 		reject(promptError);
+		return promptError;
 	});
-	await accepted;
+	return { accepted, completion };
+}
+
+function commonPrefixLength(left: readonly string[], right: readonly string[]): number {
+	const limit = Math.min(left.length, right.length);
+	let index = 0;
+	while (index < limit && left[index] === right[index]) index += 1;
+	return index;
 }
 
 function requireSessionPath(session: AgentSession): string {

@@ -1,5 +1,5 @@
 import { Settings2 } from "lucide-react";
-import { type ReactElement } from "react";
+import { type ReactElement, useEffect, useState } from "react";
 import type { PiAuthenticationStatus } from "@shared/pi-contract";
 import { Button } from "@view/components/ui/button";
 import {
@@ -16,6 +16,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@view/components/ui/tooltip";
+import { subscribeToOpenAppSettings } from "@view/lib/pi-client";
 import { AppDisabledAtom } from "@view/states/activity.atom";
 import {
 	AuthenticationAtom,
@@ -26,13 +27,15 @@ import { ShowThinkingAtom } from "@view/states/preferences.atom";
 
 
 export function AppSettingsDialog(): ReactElement {
+	const [open, setOpen] = useState(false);
 	const disabled = AppDisabledAtom.use();
 	const authentication = AuthenticationAtom.useData();
 	const isNetworkOnline = NetworkOnlineAtom.useData();
 	const [showThinking, thinking] = ShowThinkingAtom.use();
 	const setAuthenticationOpen = AuthenticationDialogOpenAtom.useChange();
+	useEffect(() => subscribeToOpenAppSettings(() => setOpen(true)), []);
 	return (
-		<Dialog>
+		<Dialog onOpenChange={setOpen} open={open}>
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<DialogTrigger asChild>

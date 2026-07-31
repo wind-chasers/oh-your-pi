@@ -8,12 +8,17 @@ import type {
 	PiOpenedSession,
 	PiImageAttachment,
 	PiSessionAbortRequest,
+	PiSessionDeleteRequest,
 	PiSessionCommand,
+	PiQueuedSessionCommand,
 	PiSessionEvent,
 	PiSessionModelRequest,
 	PiSessionRuntimeState,
+	PiSessionRegenerateRequest,
 	PiSessionThinkingRequest,
 	PiSessionTranscript,
+	PiSessionRenameRequest,
+	PiSessionRenameResult,
 	PiSessionTranscriptRequest,
 	PiWorkspacePickerResult,
 	PiWorkspaceRequest,
@@ -25,6 +30,8 @@ import type {
 	PiWorkspaceFileContent,
 	PiWorkspaceFileRequest,
 	PiWorkspaceSnapshot,
+	PiWorkspaceGit,
+	PiWorkspaceGitBranchRequest,
 } from "@shared/pi-contract";
 import type { PiRpcSchema } from "@shared/pi-rpc";
 
@@ -34,6 +41,12 @@ const rpc = Electroview.defineRPC<PiRpcSchema>({
 });
 
 if (window.__electrobun) new Electroview({ rpc });
+
+export function subscribeToOpenAppSettings(listener: () => void): () => void {
+	const handleMessage = () => listener();
+	rpc.addMessageListener("openAppSettings", handleMessage);
+	return () => rpc.removeMessageListener("openAppSettings", handleMessage);
+}
 
 export function subscribeToPiSessionEvents(listener: (event: PiSessionEvent) => void): () => void {
 	rpc.addMessageListener("sessionEvent", listener);
@@ -83,6 +96,20 @@ export async function choosePiWorkspace(): Promise<PiWorkspacePickerResult> {
 	return rpc.request.chooseWorkspace({});
 }
 
+export async function openPiWorkspaceFolder(request: PiWorkspaceRequest): Promise<void> {
+	return rpc.request.openWorkspaceFolder(request);
+}
+
+export async function inspectPiWorkspaceGit(request: PiWorkspaceRequest): Promise<PiWorkspaceGit | null> {
+	return rpc.request.inspectWorkspaceGit(request);
+}
+
+export async function switchPiWorkspaceGitBranch(
+	request: PiWorkspaceGitBranchRequest,
+): Promise<PiWorkspaceGit> {
+	return rpc.request.switchWorkspaceGitBranch(request);
+}
+
 
 export async function listPiWorkspaceFiles(request: PiWorkspaceFileRequest): Promise<PiWorkspaceFile[]> {
 	return rpc.request.listWorkspaceFiles(request);
@@ -94,6 +121,14 @@ export async function readPiWorkspaceFile(request: PiWorkspaceFileRequest): Prom
 
 export async function readPiSessionTranscript(request: PiSessionTranscriptRequest): Promise<PiSessionTranscript> {
 	return rpc.request.readSessionTranscript(request);
+}
+
+export async function renamePiSession(request: PiSessionRenameRequest): Promise<PiSessionRenameResult> {
+	return rpc.request.renameSession(request);
+}
+
+export async function deletePiSession(request: PiSessionDeleteRequest): Promise<void> {
+	return rpc.request.deleteSession(request);
 }
 
 
@@ -112,11 +147,11 @@ export async function continueRecentPiSession(request: PiWorkspaceRequest): Prom
 
 
 
-export async function setPiSessionModel(request: PiSessionModelRequest): Promise<PiOpenedSession> {
+export async function setPiSessionModel(request: PiSessionModelRequest): Promise<PiSessionRuntimeState> {
 	return rpc.request.setSessionModel(request);
 }
 
-export async function setPiSessionThinking(request: PiSessionThinkingRequest): Promise<PiOpenedSession> {
+export async function setPiSessionThinking(request: PiSessionThinkingRequest): Promise<PiSessionRuntimeState> {
 	return rpc.request.setSessionThinking(request);
 }
 
@@ -126,11 +161,15 @@ export async function promptPiSession(request: PiSessionCommand): Promise<PiSess
 	return rpc.request.promptSession(request);
 }
 
-export async function steerPiSession(request: PiSessionCommand): Promise<PiSessionRuntimeState> {
+export async function regeneratePiSession(request: PiSessionRegenerateRequest): Promise<void> {
+	return rpc.request.regenerateSessionMessage(request);
+}
+
+export async function steerPiSession(request: PiQueuedSessionCommand): Promise<PiSessionRuntimeState> {
 	return rpc.request.steerSession(request);
 }
 
-export async function followUpPiSession(request: PiSessionCommand): Promise<PiSessionRuntimeState> {
+export async function followUpPiSession(request: PiQueuedSessionCommand): Promise<PiSessionRuntimeState> {
 	return rpc.request.followUpSession(request);
 }
 

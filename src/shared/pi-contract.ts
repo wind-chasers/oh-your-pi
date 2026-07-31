@@ -39,6 +39,11 @@ export type PiSessionMessage =
 	| Omit<CustomMessage, "details">
 	| BranchSummaryMessage
 	| CompactionSummaryMessage;
+export type PiSessionTranscriptEntry = {
+	id: string;
+	parentId: string | null;
+	message: PiSessionMessage;
+};
 
 export type PiWorkspaceRequest = {
 	workspacePath: string;
@@ -65,6 +70,15 @@ export type PiWorkspacePickerResult = {
 	workspacePath: string | null;
 };
 
+export type PiWorkspaceGit = {
+	branches: string[];
+	currentBranch: string | null;
+};
+
+export type PiWorkspaceGitBranchRequest = PiWorkspaceRequest & {
+	branch: string;
+};
+
 export const PI_IMAGE_ATTACHMENT_LIMIT = 8;
 export const PI_IMAGE_ATTACHMENT_MAX_SOURCE_BYTES = 64 * 1024 * 1024;
 export const PI_IMAGE_ATTACHMENT_MAX_SOURCE_PIXELS = 100_000_000;
@@ -78,8 +92,6 @@ export type PiImageAttachment = {
 	source: PiImageAttachmentSource;
 	name: string;
 	previewDataUrl: string;
-	width: number;
-	height: number;
 };
 
 export type PiSessionTranscriptRequest = {
@@ -87,10 +99,25 @@ export type PiSessionTranscriptRequest = {
 	sessionPath: string;
 };
 
+export type PiSessionRenameRequest = PiSessionTranscriptRequest & {
+	name: string;
+};
+
+export type PiSessionDeleteRequest = PiSessionTranscriptRequest;
+
 export type PiSessionCommand = {
 	sessionPath: string;
 	text: string;
 	images?: PiImageAttachmentSource[];
+};
+
+export type PiQueuedSessionCommand = PiSessionCommand & {
+	clientId: string;
+};
+
+export type PiSessionRegenerateRequest = PiSessionCommand & {
+	clientId: string;
+	entryId: string;
 };
 
 export type PiSessionAbortRequest = {
@@ -209,7 +236,20 @@ export type PiToolPermissionResolution = {
 
 export type PiSessionTranscript = {
 	session: PiSessionSummary;
-	messages: PiSessionMessage[];
+	entries: PiSessionTranscriptEntry[];
+};
+
+
+export type PiConfirmedQueuedInput = {
+	clientId: string;
+	entryId: string;
+};
+export type PiSessionTranscriptUpdate = Pick<
+	PiSessionSummary,
+	"firstMessage" | "messageCount" | "modifiedAt"
+> & {
+	entries: PiSessionTranscriptEntry[];
+	confirmedInputs: PiConfirmedQueuedInput[];
 };
 
 export type PiModel = Pick<
@@ -233,6 +273,11 @@ export type PiOpenedSession = {
 	transcript: PiSessionTranscript;
 };
 
+export type PiSessionRenameResult = {
+	session: PiSessionSummary;
+	openedSession?: PiOpenedSession;
+};
+
 export type PiWorkspaceRefreshResult = {
 	snapshot: PiWorkspaceSnapshot;
 	openedSession?: PiOpenedSession;
@@ -245,4 +290,8 @@ export type PiSessionEvent =
 	| RoutedEvent<Pick<ToolExecutionEndEvent, "type" | "toolCallId" | "toolName" | "isError">>
 	| RoutedEvent<Pick<TextDelta, "type" | "delta">>
 	| RoutedEvent<Pick<ThinkingDelta, "type" | "delta">>
+	| RoutedEvent<{ type: "transcript_entries_appended" } & PiSessionTranscriptUpdate>
+	| RoutedEvent<{ type: "transcript_rebased"; replaceFrom: number } & PiSessionTranscriptUpdate>
+	| RoutedEvent<{ type: "queued_inputs_cleared"; clientIds: string[] }>
+	| RoutedEvent<{ type: "regeneration_failed"; clientId: string; errorMessage: string }>
 	| { sessionPath: string; type: "error"; errorMessage: NonNullable<AssistantMessage["errorMessage"]> };

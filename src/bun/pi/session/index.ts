@@ -7,6 +7,8 @@ export {
 export { PiSession, type PiSessionEvent, submitSessionPrompt } from "./session";
 export {
 	createPiOpenedSession,
-	toPiSessionMessages,
+	getFirstUserMessageText,
+	isPiSessionTranscriptEntry,
 	toPiSessionSummary,
+	toPiSessionTranscriptEntries,
 } from "./snapshot";

@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { type ReactElement } from "react";
+import { type ReactElement, type ReactNode } from "react";
 import type { PiImageAttachment } from "@shared/pi-contract";
 import { Button } from "@view/components/ui/button";
 import { ImagePreviewDialog, type PreviewImage } from "../ImagePreviewDialog";
@@ -10,6 +10,7 @@ type ComposerAttachmentsProps = {
 	onPreviewChange: (index: number | null) => void;
 	onRemove: (id: string) => void;
 	previewImages: readonly PreviewImage[];
+	tip?: ReactNode;
 };
 
 export function ComposerAttachments({
@@ -18,11 +19,13 @@ export function ComposerAttachments({
 	onPreviewChange,
 	onRemove,
 	previewImages,
+	tip,
 }: ComposerAttachmentsProps): ReactElement | null {
 	if (attachments.length === 0) return null;
 	return (
 		<>
-			<div aria-label="已选择的图片附件" className="mb-3 flex gap-2 pb-1">
+			{tip}
+			<div aria-label="已选择的图片附件" className="mb-2 flex gap-2 pb-1">
 				{attachments.map((attachment, index) => (
 					<div className="relative shrink-0" key={attachment.id}>
 						<Button

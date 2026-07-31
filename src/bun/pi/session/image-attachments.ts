@@ -35,8 +35,6 @@ export async function inspectPiImageAttachments(paths: readonly string[]): Promi
 		const path = await resolveImagePath(source.path);
 		const name = basename(path);
 		const bytes = await readPathImage(path, name);
-		const image = new Bun.Image(bytes, { maxPixels: MAX_SOURCE_PIXELS });
-		const metadata = await readMetadata(image, name);
 		const previewDataUrl = await new Bun.Image(bytes, { maxPixels: MAX_SOURCE_PIXELS })
 			.resize(PREVIEW_SIZE, PREVIEW_SIZE, { fit: "inside", withoutEnlargement: true })
 			.webp({ quality: 82 })
@@ -49,8 +47,6 @@ export async function inspectPiImageAttachments(paths: readonly string[]): Promi
 			source: { type: "path", path },
 			name,
 			previewDataUrl,
-			width: metadata.width,
-			height: metadata.height,
 		});
 	}
 	return attachments;
