@@ -1,4 +1,5 @@
 import { type SubmitEvent, type ReactElement, useMemo, useState } from "react";
+import { ShieldAlert } from "lucide-react";
 import type { PiImageAttachment, PiOpenedSession } from "@shared/pi-contract";
 import type { ChatQueuedInputs, ChatSession } from "@view/chat-store";
 import { AuthenticationAtom } from "@view/states/authentication.atom";
@@ -96,8 +97,11 @@ export function ChatComposer({
 	return (
 		<div className="bg-background px-5 pb-4 pt-2">
 			<QueuedInputs items={queuedInputs} />
-			<form className="mx-auto max-w-3xl" onSubmit={(event) => void handleSubmit(event)}>
-				<div className="rounded-2xl border bg-muted/20 p-3 focus-within:ring-2 focus-within:ring-ring has-disabled:cursor-not-allowed has-disabled:opacity-50">
+			<form
+				className="mx-auto max-w-3xl rounded-lg border p-2 outline-2 outline-transparent transition-colors focus-within:border-blue-500/60 focus-within:outline-blue-500/20"
+				onSubmit={(event) => void handleSubmit(event)}
+			>
+				<div className="p-3 has-disabled:cursor-not-allowed has-disabled:opacity-50">
 					<ComposerAttachments
 						activePreviewIndex={attachmentState.activePreviewIndex}
 						attachments={attachments}
@@ -107,7 +111,7 @@ export function ChatComposer({
 					/>
 					<textarea
 						aria-label="发送给 Pi 的消息"
-						className="block min-h-lh max-h-[8lh] w-full field-sizing-content resize-none overflow-y-auto border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground"
+						className="block min-h-lh max-h-[8lh] w-full field-sizing-content resize-none overflow-y-auto border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground/40"
 						disabled={isSending || !canCompose}
 						onChange={(event) => setDraft(event.target.value)}
 						onKeyDown={handleKeyDown}
@@ -134,8 +138,9 @@ export function ChatComposer({
 				/>
 			</form>
 			{visibleError && (
-				<p className="mx-auto mt-3 max-w-3xl text-sm text-destructive" role="alert">
-					{visibleError}
+				<p className="mx-auto mt-2 pl-1 max-w-3xl text-sm text-destructive flex items-center gap-1" role="alert">
+					<ShieldAlert size={12} />
+					<span>{visibleError}</span>
 				</p>
 			)}
 		</div>

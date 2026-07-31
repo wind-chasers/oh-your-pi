@@ -25,7 +25,7 @@ export function ComposerAttachments({
 	return (
 		<>
 			{tip}
-			<div aria-label="已选择的图片附件" className="mb-3 flex gap-2 pb-1">
+			<div aria-label="已选择的图片附件" className="mb-2 flex gap-2 pb-1">
 				{attachments.map((attachment, index) => (
 					<div className="relative shrink-0" key={attachment.id}>
 						<Button

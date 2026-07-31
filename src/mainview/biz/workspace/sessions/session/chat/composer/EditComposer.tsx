@@ -96,7 +96,7 @@ export function EditComposer(props: {
           />
           <textarea
             aria-label="发送给 Pi 的消息"
-            className="block min-h-lh max-h-[8lh] w-full field-sizing-content resize-none overflow-y-auto border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground"
+            className="block min-h-lh max-h-[8lh] w-full field-sizing-content resize-none overflow-y-auto border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground/40"
             disabled={isSending}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={handleKeyDown}
