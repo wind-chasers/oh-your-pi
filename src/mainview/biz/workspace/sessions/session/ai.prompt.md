@@ -19,7 +19,7 @@ useChatSession(workspacePath, sessionId, sessionPath)
 - `snapshot.isSending`、`isRefreshing`、`error`：会话请求状态。
 - `session.view.items`：由 `SessionView` 缓存的持久 render items。
 
-`SessionChat` 只保留 transcript 滚动锚点等容器 UI 状态；`ChatComposer` 内聚 draft、待发送附件、预览和 prompt / steer / follow-up 用户意图。切换 session identity 时由父组件 key 触发 Composer 重建；后台 session 继续由 Chat Store 接收事件，不随界面卸载终止。
+`SessionProvider` 保存当前 session 的局部跨组件 UI 状态：`EditMessageAtom` 管理消息编辑目标，`ChatEditorAtom` 管理新消息 draft。`Editor` 订阅完整 draft，`ChatComposer` 只订阅草稿是否有效；待发送附件、预览和 prompt / steer / follow-up 用户意图仍由 `ChatComposer` 内聚。切换 session identity 时由父组件 key 重建 `SessionProvider` 与 Composer；后台 session 继续由 Chat Store 接收事件，不随界面卸载终止。
 
 ## 用户意图
 
@@ -49,10 +49,12 @@ useChatSession(workspacePath, sessionId, sessionPath)
 ## 组件边界
 
 - `index.tsx`：把 Chat Store snapshot/session 适配给 Header、Transcript、权限提示与 Composer，不持有输入状态或发送操作。
+- `session.atom.ts`：定义 `SessionProvider` 作用域内的消息编辑目标与新消息 draft；状态不会跨 session 共享。
 - `chat/ChatTranscript.tsx`：隔离持久历史与互斥临时尾部渲染。
 - `chat/messages/`：普通消息展示。
 - `chat/tools/`：工具 section、详情骨架、动画、renderer registry。
-- `chat/composer/ChatComposer.tsx`：拥有 draft、待发送附件及其 prompt / steer / follow-up 操作，协调输入区、附件区、工具栏和错误展示。
+- `chat/composer/ChatComposer.tsx`：订阅 draft 有效性，拥有待发送附件及其 prompt / steer / follow-up 操作，协调输入区、附件区、工具栏和错误展示。
+- `chat/composer/Editor.tsx`：订阅完整 draft，渲染受控 textarea，并处理输入与提交快捷键。
 - `chat/composer/ComposerAttachments.tsx`：待发送图片的缩略图、移除操作与预览入口。
 - `chat/composer/ComposerToolbar.tsx`：附件选择、模型/thinking、认证、follow-up 与发送操作。
 - `chat/composer/QueuedInputs.tsx`：先渲染 steering、再渲染 follow-ups，并展示各项提交状态。

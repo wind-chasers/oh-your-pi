@@ -6,7 +6,7 @@ import { useComposerAttachments } from "./use-composer-attachments";
 import { ImageOff, LoaderCircle, Send } from "lucide-react";
 import { Button } from "@view/components/ui/button";
 import { ModelThinkingSelector } from "./ModelThinkingSelector";
-import { UserViewItem } from "../../editing-message";
+import { UserViewItem } from "@view/chat-store/session-view";
 import { AuthenticationEntry, AttachmentEntry } from './ComposerToolbar';
 import { useLLMStatus } from "./ChatComposer";
 import type { ImageContent } from "@earendil-works/pi-ai";

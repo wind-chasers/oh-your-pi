@@ -68,31 +68,6 @@ function Component() {
 ```
 创建 atom 时，使用的 `use` 方法，可以传入任意其他类型的 atom（包括 value atom, action atom, computed atom）返回其携带的值。并且会自动订阅它们的变化，从而在依赖的 atom 变化时，重新计算自己的值。
 
-### 4. Local Atom
-当状态只需要在一棵组件子树内共享，且同一子树可能同时存在多个实例时，使用 `./local` 中的 `local`，不要提升为全局 atom。每个 Provider 都拥有独立状态；Provider 卸载后，该状态随子树释放。
-
-```tsx
-import { local } from "@view/atom/local";
-
-const [EditorProvider, EditorAtom] = local(
-  () => ({ title: "", dirty: false }),
-  (get, set) => ({
-    rename(title: string) {
-      set({ ...get(), title, dirty: true });
-    },
-  }),
-);
-
-function EditorTitle() {
-  // `EditorAtom.useData`、`EditorAtom.useChange` 和 `EditorAtom.use` 的语义与 Action Atom 对应方法一致
-  // 但它们只能在对应的 Provider 子树中调用
-}
-
-function Editor() {
-  return <EditorProvider><EditorTitle /></EditorProvider>;
-}
-```
-
 
 ## 进阶用法
 

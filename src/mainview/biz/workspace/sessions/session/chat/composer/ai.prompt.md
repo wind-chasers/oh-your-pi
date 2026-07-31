@@ -1,10 +1,11 @@
 # Chat Composer
 
-本目录拥有会话输入区的纯 UI 状态与用户输入意图：草稿、待发送图片、粘贴解析、模型/thinking 选择和发送操作。会话事实与命令生命周期属于 [`../../../../../../chat-store/ai.prompt.md`](../../../../../../chat-store/ai.prompt.md)；图片的可信解码与最终编码属于主进程 `src/bun/pi/session/image-attachments.ts`。
+本目录负责会话输入区的纯 UI 状态与用户输入意图：草稿由 `SessionProvider` 作用域内的 `ChatEditorAtom` 持有，待发送图片与预览仍由 `ChatComposer` 持有；本目录还负责粘贴解析、模型/thinking 选择和发送操作。会话事实与命令生命周期属于 [`../../../../../../chat-store/ai.prompt.md`](../../../../../../chat-store/ai.prompt.md)；图片的可信解码与最终编码属于主进程 `src/bun/pi/session/image-attachments.ts`。
 
 ## 模块结构
 
-- `ChatComposer.tsx`：协调输入框、附件列表、工具栏和错误展示；不直接调用 RPC。
+- `ChatComposer.tsx`：订阅草稿是否有效，协调输入框、附件列表、工具栏和错误展示；不直接调用 RPC。
+- `Editor.tsx`：订阅完整 draft，渲染受控 textarea，并把输入与提交快捷键转成编辑器状态和表单意图。
 - `ComposerAttachments.tsx`：渲染待发送缩略图，提供移除与全屏预览入口。
 - `ComposerToolbar.tsx`：图片选择、模型/thinking、认证、follow-up 与发送按钮。
 - `ModelThinkingSelector.tsx`：只通过 `ChatSession` 修改模型与 thinking；运行中锁定。
@@ -76,7 +77,8 @@ flowchart LR
 
 ## 附件状态不变量
 
-- 未发送附件与 draft 属于 `ChatComposer` 的纯 UI state；提交后 Chat Store 只短暂保存不含 source/base64 原图的预览信息，发送失败时 Composer 保留原附件供重试。
+- draft 由 `ChatEditorAtom` 保存：`Editor` 通过 `useDraft` 订阅完整文本并逐字更新，`ChatComposer` 只通过 `useValid` 订阅“trim 后是否非空”；有效性不变时，草稿输入不会触发整个 Composer 重渲染。
+- 未发送附件属于 `ChatComposer` 的纯 UI state。draft 与附件都不进入 Chat Store；发送成功后重置，发送失败时保留供重试。
 - 每条消息最多 8 张图片。
 - 单个源最多 64 MiB、最多 1 亿像素。
 - 原生路径按规范化 path 去重；内存图片按 attachment ID 区分，不对大体积 base64 做内容哈希。

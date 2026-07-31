@@ -14,8 +14,8 @@ mock.module("electrobun/view", () => ({
 
 (globalThis as { window?: unknown }).window = {};
 
-const [{ EditMessageProvider }, { UserMessage }] = await Promise.all([
-	import("../../editing-message"),
+const [{ SessionProvider }, { UserMessage }] = await Promise.all([
+	import("../../session.atom"),
 	import("./UserMessage"),
 ]);
 
@@ -25,7 +25,7 @@ test("用户消息显示时间、复制和未启用的编辑操作", () => {
 	const text = "可复制的用户消息。";
 	const timestamp = Date.UTC(2026, 6, 29, 7, 35);
 	const html = renderToStaticMarkup(
-		<EditMessageProvider>
+		<SessionProvider>
 			<UserMessage
 				data={{
 					type: "user",
@@ -41,7 +41,7 @@ test("用户消息显示时间、复制和未启用的编辑操作", () => {
 				}}
 				session={session}
 			/>
-		</EditMessageProvider>,
+		</SessionProvider>,
 	);
 
 	expect(html).toContain('dateTime="2026-07-29T07:35:00.000Z"');

@@ -1,7 +1,7 @@
 import { type ReactElement, useEffect, useState } from "react";
 import { SelectedSessionAtom, WorkspaceAtom } from "@view/states/current.atom";
 import { WorkspaceAttr } from "./attr";
-import { SessionChat, EditMessageProvider } from "./sessions/session";
+import { SessionChat, SessionProvider } from "./sessions/session";
 import { FilePreview } from "./files/FilePreview";
 import { WorkspaceFileExplorer } from "./files/WorkspaceFileExplorer";
 import { useWorkspaceFiles } from "./files/use-workspace-files";
@@ -51,7 +51,7 @@ export function WorkspacePage(): ReactElement {
 				<SidePannel fileTreeOpen={fileTreeOpen} />
 				<div className="min-w-0 flex-1 overflow-hidden">
 					{selectedSession?.workspacePath === snapshot.workspacePath ? (
-						<EditMessageProvider key={selectedSession.sessionId}>
+						<SessionProvider key={selectedSession.sessionId}>
 							<SessionChat
 								isFileTreeOpen={fileTreeOpen}
 								key={selectedSession.sessionId}
@@ -60,7 +60,7 @@ export function WorkspacePage(): ReactElement {
 								sessionPath={selectedSession.sessionPath}
 								workspacePath={selectedSession.workspacePath}
 							/>
-						</EditMessageProvider>
+						</SessionProvider>
 					) : (
 						<WorkspaceReady onOpenFiles={() => setFileTreeOpen(true)} />
 					)}

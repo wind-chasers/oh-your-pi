@@ -7,7 +7,7 @@ import { SystemMessage } from "./messages/SystemMessage";
 import { ToolMessage } from "./messages/ToolMessage";
 import { UserMessage, PendingUserMessage, EditingUserMessage  } from "./messages/UserMessage";
 import { ToolCallsSection } from "./tools/ToolCallsSection";
-import { type UserViewItem } from "../editing-message";
+import { type UserViewItem } from "@view/chat-store/session-view";
 import type { ChatSession } from "@view/chat-store";
 
 
@@ -61,8 +61,8 @@ function TransientTail({ isStreaming, showThinking, tail }: {
 	const liveThinking = showThinking ? thinking : undefined;
 	return (
 		<>
-			<AssistantMessage isStreaming={isStreaming} text={text} thinking={liveThinking} />
 			<ToolCallsSection isLive={isStreaming} toolCalls={tools} />
+			<AssistantMessage isStreaming={isStreaming} text={text} thinking={liveThinking} />
 		</>
 	);
 }

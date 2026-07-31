@@ -6,9 +6,9 @@ import { ChatComposer } from "./chat/composer";
 import { ChatHeader } from "./chat/ChatHeader";
 import { ChatTranscript } from "./chat/ChatTranscript";
 import { ToolPermissionPrompt } from "./chat/ToolPermissionPrompt";
-import { EditMessageAtom } from './editing-message';
+import { EditMessageAtom } from './session.atom';
 
-export * from './editing-message';
+export { SessionProvider } from './session.atom';
 
 type SessionChatProps = {
 	isFileTreeOpen: boolean;
@@ -32,7 +32,7 @@ export function SessionChat({
 	const renderItems = session.view.items;
 	const isStreaming = openedSession?.runtime.isStreaming ?? false;
 	const sessionSummary = openedSession?.transcript.session;
-	const editing = EditMessageAtom.useData();
+	const editing = EditMessageAtom.useValue();
 
 	useEffect(() => {
 		if (!sessionSummary) return;

@@ -1,6 +1,7 @@
 import { Pencil } from "lucide-react";
 import { useState } from "react";
 import type { ImageContent, UserMessage } from "@earendil-works/pi-ai";
+import type { UserViewItem } from "@view/chat-store/session-view";
 
 import type { ChatMessageImagePreview } from "@view/chat-store/types";
 import { ImagePreviewDialog } from "../ImagePreviewDialog";
@@ -8,7 +9,7 @@ import { MarkdownContent } from "@view/components/markdown/markdown-content";
 import { Button } from "@view/components/ui/button";
 import { cn } from "@view/lib/utils";
 import { CopyButton, MessageTimestamp } from "./shared";
-import { type UserViewItem, EditMessageAtom } from "../../editing-message";
+import { EditMessageAtom } from "../../session.atom";
 import type { ChatSession } from "@view/chat-store";
 import { EditComposer } from '../composer/EditComposer';
 
@@ -61,7 +62,7 @@ export function EditingUserMessage({ data, session }:{
 	data: UserViewItem;
 	session: ChatSession;
 }) {
-	const editor = EditMessageAtom.useChange();
+	const editor = EditMessageAtom.useDerived();
 	return (
 		<article className="ml-auto w-full rounded-xl border-2 border-primary p-2 text-sm" data-dbg="editing-user-message">
 			<EditComposer target={data} session={session} cancel={editor.cancel} />
@@ -109,7 +110,7 @@ function UserFoot({ text, timestamp, session, data }: {
 	session: ChatSession;
 }) {
 	const canEdit = session.snapshot.useIsIdle();
-	const editor = EditMessageAtom.useChange();
+	const editor = EditMessageAtom.useDerived();
 	return (
 		<div className="mt-1 pl-1 flex flex-wrap items-center justify-between text-xs text-muted-foreground">
 			<MessageTimestamp timestamp={timestamp} />
