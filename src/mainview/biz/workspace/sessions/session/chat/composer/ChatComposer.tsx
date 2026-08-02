@@ -7,7 +7,7 @@ import { ComposerAttachments } from "./ComposerAttachments";
 import { ComposerToolbar } from "./ComposerToolbar";
 import { QueuedInputs } from "./QueuedInputs";
 import { useComposerAttachments } from "./use-composer-attachments";
-import { Editor } from './Editor';
+import { Editor } from "./editor";
 import { ChatEditorAtom } from "../../session.atom";
 
 type ChatComposerProps = {

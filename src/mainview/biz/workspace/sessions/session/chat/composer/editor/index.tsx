@@ -1,0 +1,116 @@
+import {
+	useCallback,
+	useRef,
+	type ChangeEvent,
+	type ComponentPropsWithoutRef,
+	type KeyboardEvent,
+	type RefObject,
+	type SyntheticEvent,
+} from "react";
+import { ChatEditorAtom } from "@view/biz/workspace/sessions/session/session.atom";
+import { EditorFloat } from "./Float";
+import { type EditorTextEdit } from "./framework";
+
+type EditorProps = Pick<ComponentPropsWithoutRef<"textarea">, "disabled" | "onPaste" | "placeholder">;
+
+interface EditorTextareaProps extends ComponentPropsWithoutRef<"textarea"> {
+	area: RefObject<HTMLTextAreaElement | null>;
+	onEdit: (edit: EditorTextEdit) => void;
+}
+
+function apply(textarea: HTMLTextAreaElement, edit: EditorTextEdit) {
+	textarea.focus();
+	textarea.setSelectionRange(edit.from, edit.to);
+	// Keep extension edits in Chromium's native textarea undo stack.
+	document.execCommand("insertText", false, edit.insert);
+	requestAnimationFrame(() => {
+		textarea.focus();
+		textarea.setSelectionRange(edit.cursor, edit.cursor);
+	});
+}
+
+export function Editor(props: EditorProps) {
+	const area = useRef<HTMLTextAreaElement>(null);
+	const applyEdit = useCallback((edit: EditorTextEdit) => {
+		const textarea = area.current;
+		textarea && apply(textarea, edit);
+	}, []);
+	return (
+		<>
+			<EditorTextarea {...props} area={area} onEdit={applyEdit} />
+			<EditorFloat anchorRef={area} disabled={props.disabled} onEdit={applyEdit} />
+		</>
+	);
+}
+
+function EditorTextarea({ area, onEdit, ...props }: EditorTextareaProps) {
+	const editor = ChatEditorAtom.useDerived();
+	const draft = editor.useDraft();
+
+	function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+		if (event.nativeEvent.isComposing) return;
+
+		if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+			event.preventDefault();
+			event.currentTarget.form?.requestSubmit();
+			return;
+		}
+
+		if (event.key === "Escape" && editor.command({ type: "cancel" }, onEdit)) {
+			event.preventDefault();
+			return;
+		}
+
+		if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+			const direction = event.key === "ArrowDown" ? "next" : "previous";
+			if (editor.command({ type: "navigate", direction }, onEdit)) {
+				event.preventDefault();
+				return;
+			}
+		}
+
+		const hasModifier = event.altKey || event.ctrlKey || event.metaKey || event.shiftKey;
+		if (!hasModifier && (event.key === "Enter" || event.key === "Tab")) {
+			const source = event.key === "Enter" ? "enter" : "tab";
+			if (editor.command({ type: "accept", source }, onEdit)) {
+				event.preventDefault();
+				return;
+			}
+		}
+	}
+
+	function handleChange(event: ChangeEvent<HTMLTextAreaElement>): void {
+		const textarea = event.currentTarget;
+		const inputEvent = event.nativeEvent as InputEvent;
+		editor.input({
+			draft: textarea.value,
+			inputType: inputEvent.inputType ?? "",
+			insertedText: inputEvent.data ?? null,
+			isComposing: inputEvent.isComposing ?? false,
+			selectionEnd: textarea.selectionEnd,
+			selectionStart: textarea.selectionStart,
+		});
+	}
+
+	function handleSelect(event: SyntheticEvent<HTMLTextAreaElement>): void {
+		editor.selectionChange(
+			event.currentTarget.selectionStart,
+			event.currentTarget.selectionEnd,
+		);
+	}
+
+	return (
+		<textarea
+			{...props}
+			ref={area}
+			aria-label="发送给 Pi 的消息"
+			className="block min-h-lh max-h-[8lh] w-full field-sizing-content resize-none overflow-y-auto border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground/40"
+			onChange={handleChange}
+			onKeyDown={handleKeyDown}
+			onSelect={handleSelect}
+			rows={1}
+			value={draft}
+		/>
+	);
+}
+

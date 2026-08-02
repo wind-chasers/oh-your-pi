@@ -5,7 +5,13 @@
 ## 模块结构
 
 - `ChatComposer.tsx`：订阅草稿是否有效，协调输入框、附件列表、工具栏和错误展示；不直接调用 RPC。
-- `Editor.tsx`：订阅完整 draft，渲染受控 textarea，并把输入与提交快捷键转成编辑器状态和表单意图。
+- `editor/index.tsx`：Editor 公共入口；外层创建稳定 textarea ref，并将只订阅 draft 的 textarea 与只订阅 active extension 的 Float 渲染为兄弟节点。
+- `editor/Float.tsx`：通过 `PopoverAnchor.virtualRef` 使用 textarea DOM 定位，并挂载当前 extension Panel。
+- `editor/state.ts`：定义 `ChatEditorState` 和 `deriveEditorState`，路由输入、选择、命令和 Panel 事件，并统一消费 extension result、更新状态、应用文本编辑和执行 effect。
+- `editor/framework.ts`：定义类型擦除后的 extension 协议、语义命令、文本事务、Panel bridge 与通用编辑校验。
+- `editor/extensions/index.ts`：静态注册 extension，建立唯一 ID 和单字符 trigger 索引。
+- `editor/extensions/shared/`：内置插件可选复用的 token 与 List helper，不属于 framework contract。
+- `editor/extensions/filemention/`、`skill/`、`commands/`：统一以 `index.ts` 组装并导出插件；`model.ts` 定义私有类型/state/event，`source.ts` 隔离当前 mock 与未来真实数据源，`strategy.ts` 负责词法、导航和事务，`Panel.tsx` 完整拥有 UI。
 - `ComposerAttachments.tsx`：渲染待发送缩略图，提供移除与全屏预览入口。
 - `ComposerToolbar.tsx`：图片选择、模型/thinking、认证、follow-up 与发送按钮。
 - `ModelThinkingSelector.tsx`：只通过 `ChatSession` 修改模型与 thinking；运行中锁定。
@@ -55,6 +61,19 @@ flowchart LR
   Hook --> Submit["ChatComposer → ChatSession"]
 ```
 
+### 编辑器 Extension Framework
+
+详细架构、DOM 事件不变量和扩展接入方式见 [`editor/ai.prompt.md`](editor/ai.prompt.md)。
+
+`ChatEditorState.active` 保存 `{ extension, state }`，其中 extension 直接引用 registry 中的已注册实例，后续事件和 Panel 渲染不再按 ID 查询。类型擦除只发生在 `defineEditorExtension()` adapter；每个 extension 内部仍以自己的强类型 state、Panel event 和候选数据工作。Framework 不存在统一的 item 类型，不读取候选列表，也不渲染 header、option、loading、empty 或 error。
+
+- idle 下先用 `InputEvent.data` 和 trigger map 检查本次插入的单字符；部分 WebView 不提供 `data` / `inputType` 时，通过“新 draft 删除光标前一字符后严格等于旧 draft”的单字符增量恢复 trigger。普通输入不扫描 draft，也不调用所有 extension。当前 `@`、`#`、`/` 分别注册 file、skill、command。
+- 活跃后 framework 把 input / selection event 路由给唯一 extension。extension 自己解析 token、决定阻断字符和关闭条件：file 允许 `/`、以 `:` 阻断；skill 允许 `:`、以 `/` 阻断。
+- textarea 把方向键、Enter、Tab、Escape 翻译成 `navigate`、`accept`、`cancel`，extension 决定如何响应。file 回填完整路径；skill 将 token 替换为 `[#skill:name]`；command 删除整个 `/token`。
+- extension 返回声明式 text transaction；framework 统一校验范围、更新 draft、关闭或保留 active extension，并恢复光标。插件不能直接操作 textarea DOM。
+- `EditorFloat` 只从 registry 取 `extension.Panel` 并挂载到 PopoverContent。Panel 可以使用任意 React 结构和 Hooks；键盘相关 UI 状态必须存在 extension state 或其自有外部 store，纯视觉状态可以留在 Panel 内部。
+- Popover/Portal/anchor、自动焦点阻止和文本事务属于 framework；Panel 内部布局、数据加载、鼠标事件以及 loading/empty/error 完全属于 extension。extension 可通过 `surface` 配置外壳尺寸和方位。
+
 ### 原生选择
 
 `choose()` 调用 `choosePiImageAttachments()`。文件对话框、路径规范化、图片解码和预览生成都在主进程执行；Renderer 只接收已经检查过的附件 UI 模型。
@@ -77,7 +96,8 @@ flowchart LR
 
 ## 附件状态不变量
 
-- draft 由 `ChatEditorAtom` 保存：`Editor` 通过 `useDraft` 订阅完整文本并逐字更新，`ChatComposer` 只通过 `useValid` 订阅“trim 后是否非空”；有效性不变时，草稿输入不会触发整个 Composer 重渲染。
+- draft 与 active extension 由 `ChatEditorAtom` 保存：内部 `EditorTextarea` 只通过 `useDraft` 订阅文本，`EditorFloat` 只通过 `useFloatState` 订阅 active extension，`ChatComposer` 只通过 `useValid` 订阅“trim 后是否非空”。
+- `EditorTextarea` 与 `EditorFloat` 是独立订阅的兄弟节点：draft 更新只调度 textarea，extension state 更新只调度宿主和当前 Panel。二者通过稳定 DOM ref 建立定位关系，不依赖 React children 或父子重渲染。
 - 未发送附件属于 `ChatComposer` 的纯 UI state。draft 与附件都不进入 Chat Store；发送成功后重置，发送失败时保留供重试。
 - 每条消息最多 8 张图片。
 - 单个源最多 64 MiB、最多 1 亿像素。
