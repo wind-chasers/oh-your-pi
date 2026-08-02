@@ -129,7 +129,7 @@ function renderSessionChat(
 		)
 		.hydrate(currentSession);
 	function Fixture(): ReactElement {
-		AuthenticationAtom.useChange().setStatuses(currentAuthentication);
+		AuthenticationAtom.useDerived().setStatuses(currentAuthentication);
 		return (
 			<SessionChat
 				isFileTreeOpen={false}

@@ -19,7 +19,7 @@ type ChatComposerProps = {
 };
 
 export function useLLMStatus(openedSession: PiOpenedSession) {
-	const authentication = AuthenticationAtom.useData() ?? [];
+	const authentication = AuthenticationAtom.useValue() ?? [];
 	const validProviders = useMemo(() => {
 		const set = new Set<string>();
 		for (const { status, provider } of authentication) {

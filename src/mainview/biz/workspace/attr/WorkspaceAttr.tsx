@@ -8,7 +8,7 @@ import { WorkspaceGitBranch } from "./WorkspaceGitBranch";
  * 展示当前工作区路径和本地 Git 分支。
  */
 export function WorkspaceAttr(): ReactElement {
-	const workspacePath = WorkspaceAtom.useData()?.workspacePath;
+	const workspacePath = WorkspaceAtom.useValue()?.workspacePath;
 	const [error, setError] = useState<string>();
 	return (
 		<section aria-label="工作区属性" className="shrink-0 bg-muted/20">

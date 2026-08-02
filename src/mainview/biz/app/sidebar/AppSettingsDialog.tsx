@@ -29,10 +29,10 @@ import { ShowThinkingAtom } from "@view/states/preferences.atom";
 export function AppSettingsDialog(): ReactElement {
 	const [open, setOpen] = useState(false);
 	const disabled = AppDisabledAtom.use();
-	const authentication = AuthenticationAtom.useData();
-	const isNetworkOnline = NetworkOnlineAtom.useData();
+	const authentication = AuthenticationAtom.useValue();
+	const isNetworkOnline = NetworkOnlineAtom.useValue();
 	const [showThinking, thinking] = ShowThinkingAtom.use();
-	const setAuthenticationOpen = AuthenticationDialogOpenAtom.useChange();
+	const setAuthenticationOpen = AuthenticationDialogOpenAtom.useSet();
 	useEffect(() => subscribeToOpenAppSettings(() => setOpen(true)), []);
 	return (
 		<Dialog onOpenChange={setOpen} open={open}>

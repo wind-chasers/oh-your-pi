@@ -26,8 +26,8 @@ export function SessionChat({
 	workspacePath,
 }: SessionChatProps): ReactElement {
 	const [snapshot, session] = useChatSession(workspacePath, sessionId, sessionPath);
-	const showThinking = ShowThinkingAtom.useData();
-	const setWorkspace = WorkspaceAtom.useChange();
+	const showThinking = ShowThinkingAtom.useValue();
+	const setWorkspace = WorkspaceAtom.useSet();
 	const openedSession = snapshot.openedSession;
 	const renderItems = session.view.items;
 	const isStreaming = openedSession?.runtime.isStreaming ?? false;

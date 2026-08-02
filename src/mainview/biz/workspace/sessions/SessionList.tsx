@@ -15,8 +15,8 @@ import { SessionListItem } from "./SessionListItem";
 
 export function SessionList(): ReactElement {
 	const disabled = AppDisabledAtom.use();
-	const sessions = WorkspaceAtom.useData()?.sessions ?? [];
-	const selectedSession = SelectedSessionAtom.useData();
+	const sessions = WorkspaceAtom.useValue()?.sessions ?? [];
+	const selectedSession = SelectedSessionAtom.useValue();
 	const continueRecentSession = ContinueRecentSessionMutation.use();
 	const createSession = CreateSessionMutation.use();
 	const selectSession = SelectSessionMutation.use();

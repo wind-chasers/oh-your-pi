@@ -27,7 +27,7 @@ export function ModelThinkingSelector({
 	openedSession,
 	session,
 }: ModelThinkingSelectorProps): ReactElement | null {
-	const authentication = AuthenticationAtom.useData() ?? [];
+	const authentication = AuthenticationAtom.useValue() ?? [];
 	const { availableThinkingLevels, isStreaming, model, models, thinkingLevel } =
 		openedSession.runtime;
 	const availableModels = models.filter((candidate) =>

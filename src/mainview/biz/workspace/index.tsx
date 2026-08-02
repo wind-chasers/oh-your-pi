@@ -25,8 +25,8 @@ function SidePannel(props: {
 }
 
 export function WorkspacePage(): ReactElement {
-	const snapshot = WorkspaceAtom.useData();
-	const selectedSession = SelectedSessionAtom.useData();
+	const snapshot = WorkspaceAtom.useValue();
+	const selectedSession = SelectedSessionAtom.useValue();
 	const [fileTreeOpen, setFileTreeOpen] = useState(false);
 	const files = useWorkspaceFiles(snapshot?.workspacePath);
 

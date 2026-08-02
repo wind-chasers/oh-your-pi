@@ -42,7 +42,7 @@ export interface Define {
   computed<T>(compute: (use: UseValue) => T, equal?: Equal<T>): ComputedAtom<T>;
 }
 
-export type { Unit, UseAtom };
+export type { Unit, UseAtom, UseValue, Derivative, Derive };
 
 export function local() {
   const Context = createContext<Query | null>(null);
@@ -52,6 +52,7 @@ export function local() {
     throw new Error("Local atom must be used within its Provider");
   }
 
+  const _q2u_ = new WeakMap<Query, UseAtom>();
   function build() {
     const map = new WeakMap<AnyAtom, [Unit<any>, Derivative | Change<any> | null]>();
     function ensure(atom: AnyAtom) {
@@ -65,7 +66,7 @@ export function local() {
       return side ? [state.get(), side] : state.get();
     }
     const query: Query = (a) => ensure(a)[0];
-    return query;
+    return _q2u_.set(query, use), query;
   }
 
   const define: Define = {
@@ -130,10 +131,24 @@ export function local() {
     },
   };
 
+  function mutate<T extends Function>(init: (use: UseAtom) => T) {
+    const _q2m_ = new WeakMap<Query, T>();
+    return {
+      use(): T {
+        const query = useContext(Context);
+        if (!query) throw new Error("Local atom must be used within its Provider");
+        let fn = _q2m_.get(query);
+        if (fn) return fn;
+        fn = init(_q2u_.get(query)!);
+        return (_q2m_.set(query, fn), fn);
+      },
+    };
+  }
+
   function Provider({ children }: PropsWithChildren<{}>) {
     const [value] = useState(build);
     return <Context.Provider value={value}>{children}</Context.Provider>;
   }
 
-  return [Provider, define] as const;
+  return [Provider, define, mutate] as const;
 }
