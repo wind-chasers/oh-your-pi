@@ -168,6 +168,10 @@ export type PiExtensionResource = PiResourceItem & {
 	tools: string[];
 };
 
+export type PiSkillResource = PiResourceItem & {
+	description: string;
+};
+
 export type PiAuthenticationStatus = {
 	provider: string;
 	name: string;
@@ -213,7 +217,7 @@ export type PiResourceSummary = {
 	prompts: number;
 	contextFiles: number;
 	extensionDetails: PiExtensionResource[];
-	skillDetails: PiResourceItem[];
+	skillDetails: PiSkillResource[];
 	promptDetails: PiResourceItem[];
 	diagnostics: PiResourceDiagnostic[];
 };

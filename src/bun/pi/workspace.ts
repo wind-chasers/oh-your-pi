@@ -9,6 +9,7 @@ import type {
 	PiExtensionResource,
 	PiResourceDiagnostic,
 	PiResourceItem,
+	PiSkillResource,
 	PiSessionSummary,
 	PiOpenedSession,
 	PiSessionTranscript,
@@ -24,7 +25,7 @@ import {
 export type PiResourceSnapshot = {
 	agentDir: string;
 	extensions: PiExtensionResource[];
-	skills: PiResourceItem[];
+	skills: PiSkillResource[];
 	prompts: PiResourceItem[];
 	contextFileCount: number;
 	diagnostics: PiResourceDiagnostic[];
@@ -75,6 +76,7 @@ export class PiWorkspace {
 				tools: [...extension.tools.keys()],
 			})),
 			skills: skills.skills.map((skill) => ({
+				description: skill.description,
 				name: skill.name,
 				path: skill.filePath,
 				scope: skill.sourceInfo.scope,

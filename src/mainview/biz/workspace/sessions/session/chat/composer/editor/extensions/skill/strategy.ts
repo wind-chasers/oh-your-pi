@@ -11,7 +11,6 @@ import {
 	transitionTokenState,
 } from "../shared/token";
 import type { SkillDefinition, SkillExtensionState, SkillPanelEvent } from "./model";
-import { skillSource } from "./source";
 
 const SKILL_BREAK_CHARACTERS = new Set([
 	"/", ",", "，", ";", "；", "!", "！", "?", "？", "。", ".",
@@ -44,7 +43,7 @@ function acceptSkill(
 
 export function activateSkill(context: EditorTriggerContext): SkillExtensionState | null {
 	const token = createTokenState(context, "#");
-	return token ? { ...token, activeIndex: 0 } : null;
+	return token ? { ...token, activeIndex: 0, skills: [] } : null;
 }
 
 export function transitionSkill(
@@ -56,7 +55,7 @@ export function transitionSkill(
 	if (transition.type === "close") return transition;
 	const nextState = transition.state.query === state.query
 		? transition.state
-		: { ...transition.state, activeIndex: 0 };
+		: { ...transition.state, activeIndex: 0, skills: [] };
 	return { type: "update", state: nextState };
 }
 
@@ -65,7 +64,7 @@ export function handleSkillCommand(
 	command: EditorCommand,
 ): EditorExtensionResult<SkillExtensionState> {
 	if (command.type === "cancel") return { type: "close" };
-	const skills = skillSource.search(state.query);
+	const skills = state.skills;
 	if (command.type === "navigate") {
 		const activeIndex = moveActiveIndex(state.activeIndex, skills.length, command.direction);
 		return activeIndex === null
@@ -80,7 +79,11 @@ export function handleSkillPanelEvent(
 	state: SkillExtensionState,
 	event: SkillPanelEvent,
 ): EditorExtensionResult<SkillExtensionState> {
-	const skills = skillSource.search(state.query);
+	const skills = state.skills;
+	if (event.type === "results") {
+		if (event.query !== state.query) return { type: "ignore" };
+		return { type: "update", state: { ...state, activeIndex: 0, skills: event.skills } };
+	}
 	if (event.type === "hover") {
 		if (event.index < 0 || event.index >= skills.length) return { type: "ignore" };
 		return { type: "update", state: { ...state, activeIndex: event.index } };

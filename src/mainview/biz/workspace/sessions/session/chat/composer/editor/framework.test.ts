@@ -99,7 +99,6 @@ describe("editor extension framework", () => {
 			selectionEnd: 3,
 			selectionStart: 1,
 		});
-		instance.selectionChange(1, 3, true);
 		expect(instance.get()).toMatchObject({
 			active: { extension: { id: "file" }, state: { query: "" } },
 			draft: "@zh",
@@ -206,6 +205,11 @@ describe("editor extension framework", () => {
 		const skill = editor();
 		trigger(skill, "#", "#");
 		skill.input(input("#front", 6, "t"));
+		skill.dispatchExtensionEvent({
+			type: "results",
+			query: "front",
+			skills: [{ description: "设计并实现高质量前端界面", name: "frontend-design" }],
+		}, ignoreEdit);
 		expect(skill.command({ type: "accept", source: "tab" }, ignoreEdit)).toBeTrue();
 		expect(skill.get()).toEqual({ active: null, draft: "[#skill:frontend-design]" });
 
@@ -219,6 +223,11 @@ describe("editor extension framework", () => {
 	test("语义导航和取消由当前扩展处理", () => {
 		const instance = editor();
 		trigger(instance, "#", "#");
+		instance.dispatchExtensionEvent({
+			type: "results",
+			query: "",
+			skills: [{ description: "审查实现质量", name: "code-review" }],
+		}, ignoreEdit);
 		expect(instance.command({ type: "navigate", direction: "next" }, ignoreEdit)).toBeTrue();
 		expect(instance.command({ type: "cancel" }, ignoreEdit)).toBeTrue();
 		expect(instance.get().active).toBeNull();

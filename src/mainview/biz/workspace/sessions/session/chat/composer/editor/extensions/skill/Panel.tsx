@@ -1,19 +1,32 @@
+import { useEffect, useMemo } from "react";
 import { Sparkles } from "lucide-react";
+import { WorkspaceAtom } from "@view/states/current.atom";
 import type { EditorExtensionPanelProps } from "../../framework";
 import { ExtensionList } from "../shared/List";
-import type { SkillExtensionState, SkillPanelEvent } from "./model";
-import { skillSource } from "./source";
+import type { SkillDefinition, SkillExtensionState, SkillPanelEvent } from "./model";
+import { filterSkills } from "./source";
+
+const EMPTY_SKILLS: readonly SkillDefinition[] = [];
 
 export function SkillPanel({
 	dispatch,
 	state,
 }: EditorExtensionPanelProps<SkillExtensionState, SkillPanelEvent>) {
-	const skills = skillSource.search(state.query);
+	const workspaceSkills = WorkspaceAtom.useValue()?.resources.skillDetails ?? EMPTY_SKILLS;
+	const skills = useMemo(
+		() => filterSkills(workspaceSkills, state.query),
+		[state.query, workspaceSkills],
+	);
+
+	useEffect(() => {
+		dispatch({ type: "results", query: state.query, skills });
+	}, [dispatch, skills, state.query]);
+
 	return (
 		<div className="flex flex-col gap-1 p-1">
-			<div className="px-2 py-1">
+			<div className="flex items-center justify-between gap-3 px-2 py-1">
 				<p className="text-xs font-medium">选择 Skill</p>
-				<p className="text-xs text-muted-foreground">输入名称筛选，Enter 或 Tab 插入</p>
+				<p className="text-xs text-muted-foreground">↑↓ 选择 · Enter/Tab 插入</p>
 			</div>
 			<ExtensionList
 				activeIndex={state.activeIndex}
@@ -23,7 +36,7 @@ export function SkillPanel({
 					</p>
 				)}
 				getKey={({ name }) => name}
-				items={skills}
+				items={state.skills}
 				onHover={(index) => dispatch({ type: "hover", index })}
 				onSelect={({ name }) => dispatch({ type: "select", name })}
 				renderItem={({ description, name }) => (

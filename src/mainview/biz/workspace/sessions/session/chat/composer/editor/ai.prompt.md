@@ -369,10 +369,10 @@ Panel 完整拥有 header、候选项、loading、empty、error、鼠标交互�
 ## 内置 Extensions
 
 - `file`，trigger `@`：允许路径中的 `/` 和 `.`，选择后把 query 替换为完整路径并保留 `@`；候选来自主进程搜索服务（`searchWorkspaceFiles` RPC），目录候选保留尾部 `/` 且接受后不关闭 token，可继续下钻。
-- `skill`，trigger `#`：选择后把整个 token 替换为 `[#skill:name]`。
+- `skill`，trigger `#`：候选来自 `WorkspaceAtom.resources.skillDetails` 的 workspace snapshot；Panel 以名称和描述做本地模糊筛选，选择后把整个 token 替换为 `[#skill:name]`。
 - `command`，trigger `/`：当前 mock 选择后删除整个 `/token`。
 
-`skill` 和 `command` 的 `source.ts` 目前仍是同步 mock；`file` 已接入真实异步数据。异步候选属于插件内部，不修改 framework 协议：Panel 通过 `dispatch({ type: "search", ... })` 把搜索结果回写到插件 state（`files`/`status`），键盘命令和 Panel 点击都从 `state.files` 读取同一份候选。query 变化时 `transition` 把 `status` 置为 `loading` 并清空候选，Panel 的 effect 防抖 60ms 后发起 RPC，用请求序号丢弃过期响应；`degraded` 状态表示 fd 不可用、结果仅来自单层目录匹配。不要把异步候选协议加入 framework。
+`skill` 的候选已在 workspace 加载或资源 refresh 时进入 Renderer，不为 query 发 RPC；Panel 计算筛选结果后通过 `dispatch({ type: "results", ... })` 回写插件 state，键盘和鼠标都从该 state 读取同一份候选。`command` 的 `source.ts` 目前仍是同步 mock；`file` 已接入真实异步数据。异步候选属于插件内部，不修改 framework 协议：Panel 通过 `dispatch({ type: "search", ... })` 把搜索结果回写到插件 state（`files`/`status`），键盘命令和 Panel 点击都从 `state.files` 读取同一份候选。query 变化时 `transition` 把 `status` 置为 `loading` 并清空候选，Panel 的 effect 防抖 60ms 后发起 RPC，用请求序号丢弃过期响应；`degraded` 状态表示 fd 不可用、结果仅来自单层目录匹配。不要把异步候选协议加入 framework。
 
 ## 新增 Extension
 
