@@ -33,6 +33,7 @@ export function createPiRpc(options: { app: Application; desktop: DesktopSystem 
 				switchWorkspaceGitBranch: (input) => app.workspace.switchGitBranch(input),
 				listWorkspaceFiles: (input) => app.workspace.listFiles(input),
 				readWorkspaceFile: (input) => app.workspace.readFile(input),
+				searchWorkspaceFiles: (input) => app.workspace.searchFiles(input),
 				readSessionTranscript: (input) => app.session.readTranscript(input),
 				openSession: (input) => app.session.open(input),
 				createSession: (input) => app.session.create(input),

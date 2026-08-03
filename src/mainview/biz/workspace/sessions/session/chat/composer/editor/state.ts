@@ -34,6 +34,9 @@ export function deriveEditorState({ get, set, select }: Unit<ChatEditorState>) {
 	function input(event: EditorInput): void {
 		const current = get();
 		if (event.draft === current.draft) return;
+		if (event.isComposing) {
+			return set({ ...current, draft: event.draft });
+		}
 		let active = current.active;
 		if (active) {
 			const transition = active.extension.transition(

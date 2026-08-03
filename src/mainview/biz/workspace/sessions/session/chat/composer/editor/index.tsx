@@ -46,9 +46,10 @@ export function Editor(props: EditorProps) {
 function EditorTextarea({ area, onEdit, ...props }: EditorTextareaProps) {
 	const editor = ChatEditorAtom.useDerived();
 	const draft = editor.useDraft();
+	const composing = useRef(false);
 
 	function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
-		if (event.nativeEvent.isComposing) return;
+		if (composing.current || event.nativeEvent.isComposing) return;
 
 		if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
 			event.preventDefault();
@@ -79,6 +80,14 @@ function EditorTextarea({ area, onEdit, ...props }: EditorTextareaProps) {
 		}
 	}
 
+	function handleCompositionStart(): void {
+		composing.current = true;
+	}
+
+	function handleCompositionEnd(): void {
+		composing.current = false;
+	}
+
 	function handleChange(event: ChangeEvent<HTMLTextAreaElement>): void {
 		const textarea = event.currentTarget;
 		const inputEvent = event.nativeEvent as InputEvent;
@@ -86,13 +95,14 @@ function EditorTextarea({ area, onEdit, ...props }: EditorTextareaProps) {
 			draft: textarea.value,
 			inputType: inputEvent.inputType ?? "",
 			insertedText: inputEvent.data ?? null,
-			isComposing: inputEvent.isComposing ?? false,
+			isComposing: composing.current || inputEvent.isComposing,
 			selectionEnd: textarea.selectionEnd,
 			selectionStart: textarea.selectionStart,
 		});
 	}
 
 	function handleSelect(event: SyntheticEvent<HTMLTextAreaElement>): void {
+		if (composing.current) return;
 		editor.selectionChange(
 			event.currentTarget.selectionStart,
 			event.currentTarget.selectionEnd,
@@ -106,6 +116,8 @@ function EditorTextarea({ area, onEdit, ...props }: EditorTextareaProps) {
 			aria-label="发送给 Pi 的消息"
 			className="block min-h-lh max-h-[8lh] w-full field-sizing-content resize-none overflow-y-auto border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground/40"
 			onChange={handleChange}
+			onCompositionEnd={handleCompositionEnd}
+			onCompositionStart={handleCompositionStart}
 			onKeyDown={handleKeyDown}
 			onSelect={handleSelect}
 			rows={1}

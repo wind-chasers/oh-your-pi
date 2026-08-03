@@ -6,11 +6,14 @@ import type {
 	PiWorkspaceFileContent,
 	PiWorkspaceFileRequest,
 	PiWorkspaceRequest,
+	PiFileSearchRequest,
+	PiFileSearchResult,
 } from "@shared/pi-contract";
 import type { PiRuntime } from "@main/pi";
 import { redactSensitiveText } from "@main/utils/redact-sensitive-text";
 import { listWorkspaceFiles, readWorkspaceFile } from "./files";
 import { inspectWorkspaceGit, switchWorkspaceGitBranch } from "./git";
+import { searchWorkspaceFiles } from "./search";
 
 type WorkspaceResourceSnapshot = {
 	workspacePath: string;
@@ -51,6 +54,10 @@ export class WorkspaceApplication {
 
 	async listFiles(input: PiWorkspaceFileRequest): Promise<PiWorkspaceFile[]> {
 		return listWorkspaceFiles(input);
+	}
+
+	async searchFiles(input: PiFileSearchRequest): Promise<PiFileSearchResult> {
+		return searchWorkspaceFiles(input);
 	}
 
 	async readFile(input: PiWorkspaceFileRequest): Promise<PiWorkspaceFileContent> {

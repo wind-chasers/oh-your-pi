@@ -1,10 +1,20 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { WithStore } from "@view/atom";
 import { unit } from "@view/atom/unit";
-import { createEditorExtensionRegistry, editorExtensionRegistry } from "./extensions";
-import { applyEditorTextEdit, type EditorInput } from "./framework";
-import { deriveEditorState, zeroEditorState } from "./state";
+import type { EditorInput } from "./framework";
+
+// filemention 插件经 source 依赖 @view/lib/pi-client（渲染进程 RPC 客户端，顶层访问 window）；
+// 纯 Node 测试环境需要先装 mock。
+mock.module("@view/lib/pi-client", () => ({
+	searchPiWorkspaceFiles: async () => ({ degraded: false, items: [] }),
+}));
+
+// 动态加载：pi-client mock 必须先于依赖链安装，静态 import 无法满足此顺序。
+const { createEditorExtensionRegistry, editorExtensionRegistry } = await import("./extensions");
+const { applyEditorTextEdit } = await import("./framework");
+const { deriveEditorState, zeroEditorState } = await import("./state");
 
 function input(
 	draft: string,
@@ -78,6 +88,37 @@ describe("editor extension framework", () => {
 		expect(instance.get().active).toBeNull();
 	});
 
+	test("组合输入的临时选区不会关闭活跃扩展", () => {
+		const instance = editor();
+		trigger(instance, "@", "@");
+		instance.input({
+			draft: "@zh",
+			inputType: "insertCompositionText",
+			insertedText: "zh",
+			isComposing: true,
+			selectionEnd: 3,
+			selectionStart: 1,
+		});
+		instance.selectionChange(1, 3, true);
+		expect(instance.get()).toMatchObject({
+			active: { extension: { id: "file" }, state: { query: "" } },
+			draft: "@zh",
+		});
+
+		instance.input({
+			draft: "@中",
+			inputType: "insertFromComposition",
+			insertedText: "中",
+			isComposing: false,
+			selectionEnd: 2,
+			selectionStart: 2,
+		});
+		expect(instance.get()).toMatchObject({
+			active: { extension: { id: "file" }, state: { query: "中" } },
+			draft: "@中",
+		});
+	});
+
 	test("注册表不向 framework 暴露候选数据类型", () => {
 		expect(editorExtensionRegistry.byTrigger.get("@")?.id).toBe("file");
 		expect(editorExtensionRegistry.byTrigger.get("#")?.id).toBe("skill");
@@ -104,10 +145,14 @@ describe("editor extension framework", () => {
 			const active = instance.get().active;
 			if (!active) throw new Error(`Expected ${extensionId} extension to be active`);
 			const extension = active.extension;
-			const html = renderToStaticMarkup(createElement(extension.Panel, {
-				dispatch: () => {},
-				state: active.state,
-			}));
+			const html = renderToStaticMarkup(createElement(
+				WithStore,
+				null,
+				createElement(extension.Panel, {
+					dispatch: () => {},
+					state: active.state,
+				}),
+			));
 			expect(html).toContain(expectedText);
 		}
 	});
@@ -144,6 +189,13 @@ describe("editor extension framework", () => {
 		const file = editor();
 		trigger(file, "@", "@");
 		file.input(input("@src/a", 6, "a"));
+		// file 候选来自异步 RPC：先注入搜索结果再接受。
+		file.dispatchExtensionEvent({
+			type: "search",
+			files: [{ path: "src/a.ts" }],
+			query: "src/a",
+			status: "ready",
+		}, ignoreEdit);
 		let cursor: number | undefined;
 		expect(file.command({ type: "accept", source: "enter" }, (edit) => {
 			cursor = edit.cursor;

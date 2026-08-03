@@ -144,6 +144,8 @@ active.extension.transition(active.state, event, context);
 
 这条通道持续维护 token 和 query，只返回 `update` 或 `close`。
 
+IME 组合期间仍同步 draft，但不执行 extension transition，且跳过临时组合选区；composition commit 后的普通 input 才更新 token/query。
+
 ### 2. Command
 
 `EditorTextarea` 把按键翻译成与插件业务无关的语义命令：
@@ -366,11 +368,11 @@ Panel 完整拥有 header、候选项、loading、empty、error、鼠标交互�
 
 ## 内置 Extensions
 
-- `file`，trigger `@`：允许路径中的 `/` 和 `.`，选择后把 query 替换为完整路径并保留 `@`。
+- `file`，trigger `@`：允许路径中的 `/` 和 `.`，选择后把 query 替换为完整路径并保留 `@`；候选来自主进程搜索服务（`searchWorkspaceFiles` RPC），目录候选保留尾部 `/` 且接受后不关闭 token，可继续下钻。
 - `skill`，trigger `#`：选择后把整个 token 替换为 `[#skill:name]`。
 - `command`，trigger `/`：当前 mock 选择后删除整个 `/token`。
 
-三个 `source.ts` 目前都是同步 mock。接入真实异步数据时，loading/error/cache 属于插件，不要把异步候选协议加入 framework。
+`skill` 和 `command` 的 `source.ts` 目前仍是同步 mock；`file` 已接入真实异步数据。异步候选属于插件内部，不修改 framework 协议：Panel 通过 `dispatch({ type: "search", ... })` 把搜索结果回写到插件 state（`files`/`status`），键盘命令和 Panel 点击都从 `state.files` 读取同一份候选。query 变化时 `transition` 把 `status` 置为 `loading` 并清空候选，Panel 的 effect 防抖 60ms 后发起 RPC，用请求序号丢弃过期响应；`degraded` 状态表示 fd 不可用、结果仅来自单层目录匹配。不要把异步候选协议加入 framework。
 
 ## 新增 Extension
 

@@ -29,6 +29,8 @@ import type {
 	PiWorkspaceFile,
 	PiWorkspaceFileContent,
 	PiWorkspaceFileRequest,
+	PiFileSearchRequest,
+	PiFileSearchResult,
 	PiWorkspaceSnapshot,
 	PiWorkspaceGit,
 	PiWorkspaceGitBranchRequest,
@@ -117,6 +119,10 @@ export async function listPiWorkspaceFiles(request: PiWorkspaceFileRequest): Pro
 
 export async function readPiWorkspaceFile(request: PiWorkspaceFileRequest): Promise<PiWorkspaceFileContent> {
 	return rpc.request.readWorkspaceFile(request);
+}
+
+export async function searchPiWorkspaceFiles(request: PiFileSearchRequest): Promise<PiFileSearchResult> {
+	return rpc.request.searchWorkspaceFiles(request);
 }
 
 export async function readPiSessionTranscript(request: PiSessionTranscriptRequest): Promise<PiSessionTranscript> {

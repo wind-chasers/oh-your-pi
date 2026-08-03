@@ -59,6 +59,17 @@ export type PiWorkspaceFile = {
 	type: "directory" | "file";
 };
 
+export type PiFileSearchRequest = PiWorkspaceRequest & {
+	query: string;
+};
+
+export type PiFileSearchItem = [path: string, isDir: 0 | 1];
+
+export type PiFileSearchResult = {
+	degraded: boolean;
+	items: PiFileSearchItem[];
+};
+
 export type PiWorkspaceFileContent = {
 	content: string;
 	isBinary: boolean;

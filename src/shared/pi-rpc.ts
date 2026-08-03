@@ -25,6 +25,8 @@ import type {
 	PiToolPermissionRequest,
 	PiToolPermissionResolution,
 	PiToolPermissionResponse,
+	PiFileSearchRequest,
+	PiFileSearchResult,
 	PiWorkspaceRefreshResult,
 	PiWorkspaceSnapshot,
 	PiWorkspaceFile,
@@ -47,6 +49,7 @@ export interface PiRpcSchema extends ElectrobunRPCSchema {
 			chooseImageAttachments: { params: Record<string, never>; response: PiImageAttachment[] };
 			listWorkspaceFiles: { params: PiWorkspaceFileRequest; response: PiWorkspaceFile[] };
 			readWorkspaceFile: { params: PiWorkspaceFileRequest; response: PiWorkspaceFileContent };
+			searchWorkspaceFiles: { params: PiFileSearchRequest; response: PiFileSearchResult };
 			openWorkspaceFolder: { params: PiWorkspaceRequest; response: void };
 			inspectWorkspaceGit: { params: PiWorkspaceRequest; response: PiWorkspaceGit | null };
 			switchWorkspaceGitBranch: { params: PiWorkspaceGitBranchRequest; response: PiWorkspaceGit };

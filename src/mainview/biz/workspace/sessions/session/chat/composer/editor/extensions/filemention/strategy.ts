@@ -11,7 +11,6 @@ import {
 	transitionTokenState,
 } from "../shared/token";
 import type { FileMentionPanelEvent, FileMentionState, WorkspaceFile } from "./model";
-import { fileMentionSource } from "./source";
 
 const FILE_BREAK_CHARACTERS = new Set([
 	":", "：", ",", "，", ";", "；", "!", "！", "?", "？", "。",
@@ -27,23 +26,36 @@ function acceptFile(
 	state: FileMentionState,
 	file: WorkspaceFile,
 ): EditorExtensionResult<FileMentionState> {
+	const insert = file.isDirectory ? `${file.path}/` : file.path;
+	const isDirectory = file.isDirectory;
+	const nextTokenEnd = state.triggerIndex + 1 + insert.length;
 	return {
 		type: "transaction",
 		transaction: {
-			close: true,
+			close: !isDirectory,
 			edit: {
-				cursor: state.triggerIndex + 1 + file.path.length,
+				cursor: nextTokenEnd,
 				from: state.triggerIndex + 1,
-				insert: file.path,
+				insert,
 				to: state.tokenEnd,
 			},
 		},
+		state: isDirectory
+			? {
+				...state,
+				activeIndex: 0,
+				files: [],
+				query: insert,
+				status: "loading",
+				tokenEnd: nextTokenEnd,
+			}
+			: undefined,
 	};
 }
 
 export function activateFileMention(context: EditorTriggerContext): FileMentionState | null {
 	const token = createTokenState(context, "@");
-	return token ? { ...token, activeIndex: 0 } : null;
+	return token ? { ...token, activeIndex: 0, files: [], status: "loading" } : null;
 }
 
 export function transitionFileMention(
@@ -55,7 +67,7 @@ export function transitionFileMention(
 	if (transition.type === "close") return transition;
 	const nextState = transition.state.query === state.query
 		? transition.state
-		: { ...transition.state, activeIndex: 0 };
+		: { ...transition.state, activeIndex: 0, files: [], status: "loading" as const };
 	return { type: "update", state: nextState };
 }
 
@@ -64,14 +76,13 @@ export function handleFileMentionCommand(
 	command: EditorCommand,
 ): EditorExtensionResult<FileMentionState> {
 	if (command.type === "cancel") return { type: "close" };
-	const files = fileMentionSource.search(state.query);
 	if (command.type === "navigate") {
-		const activeIndex = moveActiveIndex(state.activeIndex, files.length, command.direction);
+		const activeIndex = moveActiveIndex(state.activeIndex, state.files.length, command.direction);
 		return activeIndex === null
 			? { type: "ignore" }
 			: { type: "update", state: { ...state, activeIndex } };
 	}
-	const file = files[state.activeIndex];
+	const file = state.files[state.activeIndex];
 	return file ? acceptFile(state, file) : { type: "ignore" };
 }
 
@@ -79,12 +90,15 @@ export function handleFileMentionPanelEvent(
 	state: FileMentionState,
 	event: FileMentionPanelEvent,
 ): EditorExtensionResult<FileMentionState> {
-	const files = fileMentionSource.search(state.query);
+	if (event.type === "search") {
+		if (event.query !== state.query) return { type: "ignore" };
+		return { type: "update", state: { ...state, files: event.files, status: event.status } };
+	}
 	if (event.type === "hover") {
-		if (event.index < 0 || event.index >= files.length) return { type: "ignore" };
+		if (event.index < 0 || event.index >= state.files.length) return { type: "ignore" };
 		return { type: "update", state: { ...state, activeIndex: event.index } };
 	}
-	const file = files.find(({ path }) => path === event.path);
+	const file = state.files.find(({ path }) => path === event.path);
 	return file ? acceptFile(state, file) : { type: "ignore" };
 }
 
