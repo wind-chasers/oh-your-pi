@@ -8,14 +8,14 @@ import {
 	type SyntheticEvent,
 } from "react";
 import { ChatEditorAtom } from "@view/biz/workspace/sessions/session/session.atom";
+import { useEditorEffectHandler } from "./effects";
 import { EditorFloat } from "./Float";
-import { type EditorTextEdit } from "./framework";
+import type { EditorTextEdit } from "./framework";
 
 type EditorProps = Pick<ComponentPropsWithoutRef<"textarea">, "disabled" | "onPaste" | "placeholder">;
 
 interface EditorTextareaProps extends ComponentPropsWithoutRef<"textarea"> {
 	area: RefObject<HTMLTextAreaElement | null>;
-	onEdit: (edit: EditorTextEdit) => void;
 }
 
 function apply(textarea: HTMLTextAreaElement, edit: EditorTextEdit) {
@@ -31,19 +31,22 @@ function apply(textarea: HTMLTextAreaElement, edit: EditorTextEdit) {
 
 export function Editor(props: EditorProps) {
 	const area = useRef<HTMLTextAreaElement>(null);
+	const editor = ChatEditorAtom.useDerived();
+	const onEffect = useEditorEffectHandler();
 	const applyEdit = useCallback((edit: EditorTextEdit) => {
 		const textarea = area.current;
 		textarea && apply(textarea, edit);
 	}, []);
+	editor.useRegisterHandlers(applyEdit, onEffect);
 	return (
 		<>
-			<EditorTextarea {...props} area={area} onEdit={applyEdit} />
-			<EditorFloat anchorRef={area} disabled={props.disabled} onEdit={applyEdit} />
+			<EditorTextarea {...props} area={area} />
+			<EditorFloat anchorRef={area} disabled={props.disabled} />
 		</>
 	);
 }
 
-function EditorTextarea({ area, onEdit, ...props }: EditorTextareaProps) {
+function EditorTextarea({ area, ...props }: EditorTextareaProps) {
 	const editor = ChatEditorAtom.useDerived();
 	const draft = editor.useDraft();
 	const composing = useRef(false);
@@ -57,14 +60,14 @@ function EditorTextarea({ area, onEdit, ...props }: EditorTextareaProps) {
 			return;
 		}
 
-		if (event.key === "Escape" && editor.command({ type: "cancel" }, onEdit)) {
+		if (event.key === "Escape" && editor.command({ type: "cancel" })) {
 			event.preventDefault();
 			return;
 		}
 
 		if (event.key === "ArrowDown" || event.key === "ArrowUp") {
 			const direction = event.key === "ArrowDown" ? "next" : "previous";
-			if (editor.command({ type: "navigate", direction }, onEdit)) {
+			if (editor.command({ type: "navigate", direction })) {
 				event.preventDefault();
 				return;
 			}
@@ -73,7 +76,7 @@ function EditorTextarea({ area, onEdit, ...props }: EditorTextareaProps) {
 		const hasModifier = event.altKey || event.ctrlKey || event.metaKey || event.shiftKey;
 		if (!hasModifier && (event.key === "Enter" || event.key === "Tab")) {
 			const source = event.key === "Enter" ? "enter" : "tab";
-			if (editor.command({ type: "accept", source }, onEdit)) {
+			if (editor.command({ type: "accept", source })) {
 				event.preventDefault();
 				return;
 			}

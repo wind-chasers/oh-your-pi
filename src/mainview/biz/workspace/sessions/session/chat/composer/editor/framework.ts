@@ -25,10 +25,12 @@ export interface EditorTextEdit {
 	to: number;
 }
 
+export type EditorEffect = { type: string };
+
 export interface EditorTransaction {
 	close: boolean;
 	edit?: EditorTextEdit;
-	effect?: () => void;
+	effect?: EditorEffect;
 }
 
 export interface EditorExtensionContext {

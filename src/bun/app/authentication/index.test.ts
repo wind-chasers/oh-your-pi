@@ -41,6 +41,35 @@ test("OAuth 提供商未连接时仍可通过选择提示完成登录", async ()
 	app.dispose();
 });
 
+test("GitHub Copilot 的 Enterprise 域提示允许提交空值", async () => {
+	const authentication = {
+		listProviders: async () => [],
+		login: async (
+			_provider: string,
+			_method: AuthType,
+			interaction: AuthInteraction,
+		) => {
+			expect(await interaction.prompt({
+				type: "text",
+				message: "GitHub Enterprise URL/domain (blank for github.com)",
+				placeholder: "company.ghe.com",
+			})).toBe("");
+		},
+	} as unknown as PiAuthentication;
+	const app = new AuthenticationApplication(authentication);
+	const events: Array<{ allowsEmpty?: boolean; promptId: string | null }> = [];
+	app.subscribe((event) => events.push(event));
+
+	const login = app.login({ authType: "oauth", provider: "github-copilot" });
+	await Promise.resolve();
+	await Promise.resolve();
+
+	expect(events[0]).toMatchObject({ allowsEmpty: true });
+	app.respond({ id: events[0].promptId!, value: "" });
+	await login;
+	app.dispose();
+});
+
 test("取消登录会中止提供商交互", async () => {
 	let signal: AbortSignal | undefined;
 	const authentication = {

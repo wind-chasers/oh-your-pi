@@ -64,6 +64,9 @@ useChatSession(workspacePath, sessionId, sessionPath)
 - `chat/composer/ModelThinkingSelector.tsx`：通过 `ChatSession` 修改模型和 thinking。
 - `chat/ImagePreviewDialog.tsx`：Composer 与历史用户消息共用的全屏图片查看器，支持方向键和前后切换。
 - `chat/ToolPermissionPrompt.tsx`：展示队首授权并返回决定。
+- 成功 compact 后通过全局 Radix Toast 通知摘要位置；通知由 `CompactSessionMutation` 在 RPC 成功后写入通用通知队列。
+
+`createToast()` 未传 `duration` 时默认 5 秒；`duration: null` 创建只可手动关闭的持久通知。需要用户决策时应使用 `AlertDialog`，而不是持久通知。
 - `settings/`、`export/`：session 附属界面，不持有第二份 transcript。
 
 ## 验证

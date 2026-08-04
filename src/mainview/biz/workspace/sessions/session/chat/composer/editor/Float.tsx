@@ -1,18 +1,15 @@
-import { useCallback, useEffect, type RefObject } from "react";
+import { useEffect, type RefObject } from "react";
 import { ChatEditorAtom } from "@view/biz/workspace/sessions/session/session.atom";
 import { Popover, PopoverAnchor, PopoverContent } from "@view/components/ui/popover";
-import type { EditorTextEdit } from "./framework";
 
 interface EditorFloatProps {
 	anchorRef: RefObject<HTMLTextAreaElement | null>;
 	disabled?: boolean;
-	onEdit: (edit: EditorTextEdit) => void;
 }
 
-export function EditorFloat({ anchorRef, disabled, onEdit }: EditorFloatProps) {
+export function EditorFloat({ anchorRef, disabled }: EditorFloatProps) {
 	const editor = ChatEditorAtom.useDerived();
 	const active = editor.useFloatState();
-	const dispatch = useCallback((event: any) => editor.dispatchExtensionEvent(event, onEdit), [editor, onEdit]);
 
 	useEffect(() => {
 		if (disabled) editor.closeFloat();
@@ -30,7 +27,7 @@ export function EditorFloat({ anchorRef, disabled, onEdit }: EditorFloatProps) {
 				side={surface?.side ?? "top"}
 				sideOffset={surface?.sideOffset ?? 8}
 			>
-				<Panel dispatch={dispatch} key={id} state={state} />
+				<Panel dispatch={editor.dispatchExtensionEvent} key={id} state={state} />
 			</PopoverContent>
 		);
 	}

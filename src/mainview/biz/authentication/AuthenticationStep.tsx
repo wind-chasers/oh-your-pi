@@ -162,7 +162,7 @@ function AuthenticationPrompt({
 					value={promptValue}
 				/>
 			</label>
-			<Button disabled={!promptValue} size="sm" type="submit">继续</Button>
+			<Button disabled={!event.allowsEmpty && !promptValue} size="sm" type="submit">继续</Button>
 		</form>
 	);
 }

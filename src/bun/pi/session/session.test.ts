@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, mock, test } from "bun:test";
 import {
 	type AgentSession,
@@ -70,6 +73,71 @@ test("中止运行前清空 steer 与 follow-up 队列", async () => {
 	await session.abort();
 
 	expect(calls).toEqual(["clear", "abort"]);
+});
+
+test("压缩前清空队列，完成后发布会话变化", async () => {
+	const calls: string[] = [];
+	const clearQueue = mock(() => {
+		calls.push("clear");
+		return { steering: [], followUp: [] };
+	});
+	const compact = mock(async () => {
+		calls.push("compact");
+	});
+	type SessionInternals = {
+		agentSession: AgentSession;
+		publishTranscriptChanges(session: AgentSession): void;
+	};
+	const SessionConstructor = PiSession as unknown as new (options: never) => PiSession;
+	const session = new SessionConstructor({} as never);
+	const agentSession = { clearQueue, compact } as unknown as AgentSession;
+	const internals = session as unknown as SessionInternals;
+	internals.agentSession = agentSession;
+	internals.publishTranscriptChanges = mock(() => calls.push("publish"));
+
+	await session.compact();
+
+	expect(calls).toEqual(["clear", "compact", "publish"]);
+});
+
+test("复制活动分支会创建独立的持久化会话", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "oh-your-pi-session-"));
+	try {
+		const manager = SessionManager.create(directory, directory);
+		const userId = manager.appendMessage({ role: "user", content: "开始", timestamp: 0 });
+		const assistantId = manager.appendMessage({
+			api: "test",
+			provider: "test",
+			model: "test",
+			role: "assistant",
+			content: [{ type: "text", text: "回答" }],
+			stopReason: "stop",
+			timestamp: 1,
+			usage: {
+				input: 0,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+				totalTokens: 0,
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+			},
+		});
+		const sourcePath = manager.getSessionFile();
+		if (!sourcePath) throw new Error("Expected persisted source session");
+		type SessionInternals = { agentSession: AgentSession; sessionPath: string };
+		const SessionConstructor = PiSession as unknown as new (options: never) => PiSession;
+		const session = new SessionConstructor({} as never);
+		const internals = session as unknown as SessionInternals;
+		internals.agentSession = { sessionManager: manager } as AgentSession;
+		internals.sessionPath = sourcePath;
+
+		const clone = session.createClonedSessionManager();
+
+		expect(clone.getSessionFile()).not.toBe(sourcePath);
+		expect(clone.getEntries().map((entry) => entry.id)).toEqual([userId, assistantId]);
+	} finally {
+		await rm(directory, { force: true, recursive: true });
+	}
 });
 
 test("重新生成会从历史用户消息的父节点创建分支", async () => {

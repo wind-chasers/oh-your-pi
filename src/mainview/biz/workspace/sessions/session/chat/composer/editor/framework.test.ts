@@ -36,7 +36,6 @@ function editor() {
 	return deriveEditorState(unit({ ...zeroEditorState }));
 }
 
-function ignoreEdit(): void {}
 
 function trigger(
 	instance: ReturnType<typeof editor>,
@@ -82,7 +81,7 @@ describe("editor extension framework", () => {
 	test("忽略已同步 draft 的 DOM input 回声", () => {
 		const instance = editor();
 		trigger(instance, "@", "@");
-		instance.command({ type: "cancel" }, ignoreEdit);
+		instance.command({ type: "cancel" });
 
 		instance.input(input("@", 1, "@"));
 		expect(instance.get().active).toBeNull();
@@ -194,12 +193,8 @@ describe("editor extension framework", () => {
 			files: [{ path: "src/a.ts" }],
 			query: "src/a",
 			status: "ready",
-		}, ignoreEdit);
-		let cursor: number | undefined;
-		expect(file.command({ type: "accept", source: "enter" }, (edit) => {
-			cursor = edit.cursor;
-		})).toBeTrue();
-		expect(cursor).toBe(9);
+		});
+		expect(file.command({ type: "accept", source: "enter" })).toBeTrue();
 		expect(file.get()).toEqual({ active: null, draft: "@src/a.ts" });
 
 		const skill = editor();
@@ -209,15 +204,28 @@ describe("editor extension framework", () => {
 			type: "results",
 			query: "front",
 			skills: [{ description: "设计并实现高质量前端界面", name: "frontend-design" }],
-		}, ignoreEdit);
-		expect(skill.command({ type: "accept", source: "tab" }, ignoreEdit)).toBeTrue();
+		});
+		expect(skill.command({ type: "accept", source: "tab" })).toBeTrue();
 		expect(skill.get()).toEqual({ active: null, draft: "[#skill:frontend-design]" });
 
 		const command = editor();
 		trigger(command, "/", "/");
-		command.input(input("/rev", 4, "v"));
-		expect(command.command({ type: "accept", source: "enter" }, ignoreEdit)).toBeTrue();
+		command.input(input("/new", 4, "w"));
+		expect(command.command({ type: "accept", source: "enter" })).toBeTrue();
 		expect(command.get()).toEqual({ active: null, draft: "" });
+	});
+
+	test("命令 Tab 补全后保持浮层，完整匹配时放行", () => {
+		const instance = editor();
+		trigger(instance, "/", "/");
+		instance.input(input("/comp", 5, "p"));
+
+		expect(instance.command({ type: "accept", source: "tab" })).toBeTrue();
+		expect(instance.get()).toMatchObject({
+			active: { extension: { id: "command" }, state: { query: "compact", tokenEnd: 8 } },
+			draft: "/compact",
+		});
+		expect(instance.command({ type: "accept", source: "tab" })).toBeFalse();
 	});
 
 	test("语义导航和取消由当前扩展处理", () => {
@@ -227,9 +235,9 @@ describe("editor extension framework", () => {
 			type: "results",
 			query: "",
 			skills: [{ description: "审查实现质量", name: "code-review" }],
-		}, ignoreEdit);
-		expect(instance.command({ type: "navigate", direction: "next" }, ignoreEdit)).toBeTrue();
-		expect(instance.command({ type: "cancel" }, ignoreEdit)).toBeTrue();
+		});
+		expect(instance.command({ type: "navigate", direction: "next" })).toBeTrue();
+		expect(instance.command({ type: "cancel" })).toBeTrue();
 		expect(instance.get().active).toBeNull();
 	});
 });

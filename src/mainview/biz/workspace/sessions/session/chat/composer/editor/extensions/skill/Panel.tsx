@@ -39,6 +39,7 @@ export function SkillPanel({
 				items={state.skills}
 				onHover={(index) => dispatch({ type: "hover", index })}
 				onSelect={({ name }) => dispatch({ type: "select", name })}
+				itemClass="h-11"
 				renderItem={({ description, name }) => (
 					<>
 						<Sparkles aria-hidden data-icon="inline-start" />

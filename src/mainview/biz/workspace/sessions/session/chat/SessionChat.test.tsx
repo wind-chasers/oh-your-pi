@@ -144,11 +144,11 @@ function renderSessionChat(
 	return renderToStaticMarkup(
 		<TooltipProvider>
 			<WithStore>
-					<SessionProvider>
-						<Fixture />
-					</SessionProvider>
+				<SessionProvider>
+					<Fixture />
+				</SessionProvider>
 			</WithStore>
-		</TooltipProvider>
+		</TooltipProvider>,
 	);
 }
 
@@ -213,4 +213,5 @@ describe("SessionChat", () => {
 		expect(html).toContain("连接模型提供商");
 		expect(html).not.toContain(">发送</button>");
 	});
+
 });

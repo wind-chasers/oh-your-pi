@@ -4,6 +4,8 @@ const RECENT_WORKSPACES_KEY = "oh-your-pi.recent-workspaces";
 const SHOW_THINKING_KEY = "oh-your-pi.show-thinking";
 const MAX_RECENT_WORKSPACES = 5;
 
+export const AppSettingsDialogOpenAtom = atom(false);
+
 export const ShowThinkingAtom = atom(false, ({ get, set }) => {
 	set(readShowThinking());
 

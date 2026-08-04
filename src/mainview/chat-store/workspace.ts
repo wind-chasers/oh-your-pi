@@ -1,5 +1,10 @@
 import type { PiOpenedSession, PiSessionEvent, PiToolPermissionRequest } from "@shared/pi-contract";
-import { continueRecentPiSession, createPiSession } from "@view/lib/pi-client";
+import {
+	continueRecentPiSession,
+	createPiSession,
+	dropPiSession,
+	forkPiSession,
+} from "@view/lib/pi-client";
 import { ChatSession } from "./session";
 import { requireValue } from "./utils";
 
@@ -68,6 +73,24 @@ export class ChatWorkspace {
 		return this.runSessionOperation(async () => {
 			const openedSession = await continueRecentPiSession({ workspacePath: this.path });
 			return this.installOpenedSession(openedSession);
+		});
+	}
+
+	public async forkSession(sessionPath: string): Promise<ChatSession> {
+		return this.runSessionOperation(async () => this.installOpenedSession(await forkPiSession({
+			workspacePath: this.path,
+			sessionPath,
+		})));
+	}
+
+	public async dropSession(sessionId: string, sessionPath: string): Promise<ChatSession> {
+		return this.runSessionOperation(async () => {
+			const session = this.installOpenedSession(await dropPiSession({
+				workspacePath: this.path,
+				sessionPath,
+			}));
+			this.removeSession(sessionId);
+			return session;
 		});
 	}
 

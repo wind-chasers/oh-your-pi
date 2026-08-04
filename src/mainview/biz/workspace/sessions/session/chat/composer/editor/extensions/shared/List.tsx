@@ -9,6 +9,7 @@ interface ExtensionListProps<TItem> {
 	onHover: (index: number) => void;
 	onSelect: (item: TItem) => void;
 	renderItem: (item: TItem) => ReactNode;
+	itemClass?: string;
 }
 
 export function ExtensionList<TItem>({
@@ -19,6 +20,7 @@ export function ExtensionList<TItem>({
 	onHover,
 	onSelect,
 	renderItem,
+	itemClass,
 }: ExtensionListProps<TItem>): ReactElement {
 	const options = useRef<Array<HTMLButtonElement | null>>([]);
 
@@ -31,7 +33,7 @@ export function ExtensionList<TItem>({
 		<div className="flex max-h-52 flex-col gap-0.5 overflow-y-auto">
 			{items.map((item, index) => (
 				<Button
-					className="w-full justify-start font-normal data-[active=true]:bg-accent data-[active=true]:text-accent-foreground"
+					className={`w-full justify-start font-normal data-[active=true]:bg-accent data-[active=true]:text-accent-foreground ${itemClass ?? ""}`}
 					data-active={index === activeIndex}
 					key={getKey(item)}
 					onClick={() => onSelect(item)}

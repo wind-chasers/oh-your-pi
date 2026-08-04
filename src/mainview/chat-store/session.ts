@@ -8,6 +8,7 @@ import type {
 } from "@shared/pi-contract";
 import {
 	abortPiSession,
+	compactPiSession,
 	followUpPiSession,
 	openPiSession,
 	promptPiSession,
@@ -164,6 +165,21 @@ export class ChatSession {
 			}
 		} catch (error) {
 			this.snapshot.setError(toErrorMessage(error, "无法停止 Pi 会话。"));
+			throw error;
+		} finally {
+			this.endCommand();
+		}
+	}
+
+	public async compact(): Promise<void> {
+		this.requireOpenedSession();
+		this.beginCommand();
+		this.snapshot.setError(null);
+		try {
+			const runtime = await compactPiSession({ sessionPath: this.path });
+			if (!this.disposed) this.applyRuntime(runtime);
+		} catch (error) {
+			this.snapshot.setError(toErrorMessage(error, "无法压缩 Pi 会话。"));
 			throw error;
 		} finally {
 			this.endCommand();

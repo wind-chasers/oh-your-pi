@@ -1,5 +1,5 @@
 import { expect, mock, test } from "bun:test";
-import type { PiSessionRuntimeState } from "@shared/pi-contract";
+import type { PiOpenedSession, PiSessionRuntimeState } from "@shared/pi-contract";
 import type { PiRuntime, PiSession } from "@main/pi";
 import type { AuthenticationApplication } from "@main/app/authentication";
 import { SessionApplication } from ".";
@@ -11,9 +11,13 @@ const input = {
 	text: "修改后的问题",
 };
 
-function createApplication(session: Partial<PiSession>) {
+function createApplication(
+	session: Partial<PiSession>,
+	workspace?: Record<string, unknown>,
+) {
 	const pi = {
 		getSession: () => session as PiSession,
+		openWorkspace: async () => workspace,
 	} as unknown as PiRuntime;
 	const withProviderOperation = mock(async (_provider: string, operation: () => Promise<unknown>) => operation());
 	const authentication = { withProviderOperation } as unknown as AuthenticationApplication;
@@ -107,5 +111,60 @@ test("模型与思考设置只返回 runtime", async () => {
 	expect(setModel).toHaveBeenCalledWith("anthropic", "claude");
 	expect(setThinking).toHaveBeenCalledWith("off");
 	expect(getRuntimeState).toHaveBeenCalledTimes(2);
+	application.dispose();
+});
+
+test("复制和删除会话委托给所属工作区并返回新快照", async () => {
+	const forkedSnapshot = {} as PiOpenedSession;
+	const droppedSnapshot = {} as PiOpenedSession;
+	const forkedSession = {
+		getSnapshot: mock(() => forkedSnapshot),
+		path: "/tmp/forked.jsonl",
+		subscribe: mock(() => () => {}),
+	};
+	const droppedSession = {
+		getSnapshot: mock(() => droppedSnapshot),
+		path: "/tmp/replacement.jsonl",
+		subscribe: mock(() => () => {}),
+	};
+	const workspace = {
+		dropSession: mock(async () => droppedSession),
+		forkSession: mock(async () => forkedSession),
+	};
+	const { application } = createApplication({}, workspace);
+	const request = { sessionPath: input.sessionPath, workspacePath: "/tmp" };
+
+	expect(await application.fork(request)).toBe(forkedSnapshot);
+	expect(await application.drop(request)).toBe(droppedSnapshot);
+	expect(workspace.forkSession).toHaveBeenCalledWith(input.sessionPath, expect.any(Object));
+	expect(workspace.dropSession).toHaveBeenCalledWith(input.sessionPath, expect.any(Object));
+	application.dispose();
+});
+
+test("压缩会话复用认证保护并返回最新运行态", async () => {
+	const runtime = {
+		sessionId: "session-id",
+		sessionPath: input.sessionPath,
+		isStreaming: false,
+		sessionName: undefined,
+		model: undefined,
+		models: [],
+		thinkingLevel: "off",
+		availableThinkingLevels: ["off"],
+	} satisfies PiSessionRuntimeState;
+	const compact = mock(async () => {});
+	const requireResolvedAuthentication = mock(async () => {});
+	const getRuntimeState = mock(() => runtime);
+	const { application, withProviderOperation } = createApplication({
+		compact,
+		getRuntimeState,
+		provider: "anthropic",
+		requireResolvedAuthentication,
+	});
+
+	expect(await application.compact({ sessionPath: input.sessionPath })).toBe(runtime);
+	expect(withProviderOperation).toHaveBeenCalledWith("anthropic", expect.any(Function));
+	expect(requireResolvedAuthentication).toHaveBeenCalledTimes(1);
+	expect(compact).toHaveBeenCalledTimes(1);
 	application.dispose();
 });

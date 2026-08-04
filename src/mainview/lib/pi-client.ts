@@ -9,6 +9,9 @@ import type {
 	PiImageAttachment,
 	PiSessionAbortRequest,
 	PiSessionDeleteRequest,
+	PiSessionCompactRequest,
+	PiSessionDropRequest,
+	PiSessionForkRequest,
 	PiSessionCommand,
 	PiQueuedSessionCommand,
 	PiSessionEvent,
@@ -148,6 +151,18 @@ export async function createPiSession(request: PiWorkspaceRequest): Promise<PiOp
 
 export async function continueRecentPiSession(request: PiWorkspaceRequest): Promise<PiOpenedSession> {
 	return rpc.request.continueRecentSession(request);
+}
+
+export async function forkPiSession(request: PiSessionForkRequest): Promise<PiOpenedSession> {
+	return rpc.request.forkSession(request);
+}
+
+export async function dropPiSession(request: PiSessionDropRequest): Promise<PiOpenedSession> {
+	return rpc.request.dropSession(request);
+}
+
+export async function compactPiSession(request: PiSessionCompactRequest): Promise<PiSessionRuntimeState> {
+	return rpc.request.compactSession(request);
 }
 
 

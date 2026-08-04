@@ -1,3 +1,4 @@
+import { useLayoutEffect } from "react";
 import type { Unit } from "@view/atom/local";
 import { getEditorExtensionByTrigger } from "./extensions";
 import {
@@ -8,14 +9,21 @@ import {
 	type EditorExtensionResult,
 	type EditorInput,
 	type EditorTextEdit,
+	type EditorEffect,
 } from "./framework";
 
 export interface ChatEditorState {
 	active: ActiveEditorExtension | null;
 	draft: string;
 }
+type EditorHandlers = {
+	effect: (effect: EditorEffect) => void;
+	edit: (edit: EditorTextEdit) => void;
+};
 
 export const zeroEditorState: ChatEditorState = { active: null, draft: "" };
+const NOOP = () => {};
+const NOOP_HANDLERS: EditorHandlers = { effect: NOOP, edit: NOOP };
 
 export function deriveEditorState({ get, set, select }: Unit<ChatEditorState>) {
 	function activate(input: EditorInput, previousDraft: string): ActiveEditorExtension | null {
@@ -68,10 +76,18 @@ export function deriveEditorState({ get, set, select }: Unit<ChatEditorState>) {
 		set({ ...current, active });
 	}
 
-	function applyResult(
-		result: EditorExtensionResult<any>,
-		onEdit: (edit: EditorTextEdit) => void,
-	): boolean {
+	let handlers: EditorHandlers = NOOP_HANDLERS;
+	function useRegisterHandlers(edit: EditorHandlers["edit"], effect: EditorHandlers["effect"]) {
+		useLayoutEffect(() => {
+			const registered: EditorHandlers = { edit, effect };
+			handlers = registered;
+			return () => {
+				if (handlers === registered) handlers = NOOP_HANDLERS;
+			};
+		}, [edit, effect]);
+	}
+
+	function applyResult(result: EditorExtensionResult<any>): boolean {
 		const current = get();
 		if (!current.active || result.type === "ignore") return false;
 		if (result.type === "close") {
@@ -94,35 +110,29 @@ export function deriveEditorState({ get, set, select }: Unit<ChatEditorState>) {
 				state: result.state ?? current.active.state,
 			};
 		set({ active, draft });
-		if (transaction.edit) onEdit(transaction.edit);
-		transaction.effect?.();
+		if (transaction.edit) handlers.edit(transaction.edit);
+		if (transaction.effect) handlers.effect(transaction.effect);
 		return true;
 	}
 
-	function command(
-		command: EditorCommand,
-		onEdit: (edit: EditorTextEdit) => void,
-	): boolean {
+	function command(command: EditorCommand): boolean {
 		const current = get();
 		if (!current.active) return false;
 		return applyResult(current.active.extension.handleCommand(
 			current.active.state,
 			command,
 			{ draft: current.draft },
-		), onEdit);
+		));
 	}
 
-	function dispatchExtensionEvent(
-		event: any,
-		onEdit: (edit: EditorTextEdit) => void,
-	): boolean {
+	function dispatchExtensionEvent(event: any): boolean {
 		const current = get();
 		if (!current.active) return false;
 		return applyResult(current.active.extension.handlePanelEvent(
 			current.active.state,
 			event,
 			{ draft: current.draft },
-		), onEdit);
+		));
 	}
 
 	function closeFloat(): boolean {
@@ -151,5 +161,6 @@ export function deriveEditorState({ get, set, select }: Unit<ChatEditorState>) {
 		useDraft,
 		useFloatState,
 		useValid,
+		useRegisterHandlers,
 	};
 }

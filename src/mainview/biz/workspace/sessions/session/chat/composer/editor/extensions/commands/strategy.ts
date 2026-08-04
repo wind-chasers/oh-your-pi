@@ -10,7 +10,12 @@ import {
 	moveActiveIndex,
 	transitionTokenState,
 } from "../shared/token";
-import type { CommandExtensionState, CommandPanelEvent } from "./model";
+import type {
+	CommandDefinition,
+	CommandEditorEffect,
+	CommandExtensionState,
+	CommandPanelEvent,
+} from "./model";
 import { commandSource } from "./source";
 
 const COMMAND_BREAK_CHARACTERS = new Set([
@@ -23,7 +28,11 @@ function isCommandBreakCharacter(character: string): boolean {
 	return /\s/u.test(character) || COMMAND_BREAK_CHARACTERS.has(character);
 }
 
-function acceptCommand(state: CommandExtensionState): EditorExtensionResult<CommandExtensionState> {
+function acceptCommand(
+	state: CommandExtensionState,
+	command: CommandDefinition,
+): EditorExtensionResult<CommandExtensionState> {
+	const effect: CommandEditorEffect = { command: command.id, type: "command" };
 	return {
 		type: "transaction",
 		transaction: {
@@ -32,6 +41,30 @@ function acceptCommand(state: CommandExtensionState): EditorExtensionResult<Comm
 				cursor: state.triggerIndex,
 				from: state.triggerIndex,
 				insert: "",
+				to: state.tokenEnd,
+			},
+			effect,
+		},
+	};
+}
+
+function completeCommand(
+	state: CommandExtensionState,
+	command: CommandDefinition,
+): EditorExtensionResult<CommandExtensionState> {
+	const query = state.query.toLocaleLowerCase();
+	const name = command.name.toLocaleLowerCase();
+	if (!query || query === name || !name.startsWith(query)) return { type: "ignore" };
+	const tokenEnd = state.triggerIndex + 1 + command.name.length;
+	return {
+		type: "transaction",
+		state: { ...state, query: command.name, tokenEnd },
+		transaction: {
+			close: false,
+			edit: {
+				cursor: tokenEnd,
+				from: state.triggerIndex + 1,
+				insert: command.name,
 				to: state.tokenEnd,
 			},
 		},
@@ -68,7 +101,11 @@ export function handleCommandCommand(
 			? { type: "ignore" }
 			: { type: "update", state: { ...state, activeIndex } };
 	}
-	return commands[state.activeIndex] ? acceptCommand(state) : { type: "ignore" };
+	const selected = commands[state.activeIndex];
+	if (!selected) return { type: "ignore" };
+	return command.source === "tab"
+		? completeCommand(state, selected)
+		: acceptCommand(state, selected);
 }
 
 export function handleCommandPanelEvent(
@@ -80,8 +117,7 @@ export function handleCommandPanelEvent(
 		if (event.index < 0 || event.index >= commands.length) return { type: "ignore" };
 		return { type: "update", state: { ...state, activeIndex: event.index } };
 	}
-	return commands.some(({ name }) => name === event.name)
-		? acceptCommand(state)
-		: { type: "ignore" };
+	const selected = commands.find((command) => command.id === event.id);
+	return selected ? acceptCommand(state, selected) : { type: "ignore" };
 }
 

@@ -3,6 +3,9 @@ import type {
 	PiImageAttachment,
 	PiSessionDeleteRequest,
 	PiSessionAbortRequest,
+	PiSessionCompactRequest,
+	PiSessionDropRequest,
+	PiSessionForkRequest,
 	PiSessionCommand,
 	PiQueuedSessionCommand,
 	PiSessionEvent as AppSessionEvent,
@@ -91,6 +94,32 @@ export class SessionApplication {
 		const workspace = await this.pi.openWorkspace(input.workspacePath);
 		const sessionPath = await workspace.deleteSession(input.sessionPath);
 		this.detachSession(sessionPath);
+	}
+
+	async fork(input: PiSessionForkRequest): Promise<PiOpenedSession> {
+		const workspace = await this.pi.openWorkspace(input.workspacePath);
+		const session = await workspace.forkSession(input.sessionPath, this.createSessionHooks());
+		this.attachSession(session);
+		return session.getSnapshot();
+	}
+
+	async drop(input: PiSessionDropRequest): Promise<PiOpenedSession> {
+		const workspace = await this.pi.openWorkspace(input.workspacePath);
+		const session = await workspace.dropSession(input.sessionPath, this.createSessionHooks());
+		this.detachSession(input.sessionPath);
+		this.attachSession(session);
+		return session.getSnapshot();
+	}
+
+	async compact(input: PiSessionCompactRequest): Promise<PiSessionRuntimeState> {
+		const session = this.pi.getSession(input.sessionPath);
+		const provider = session.provider;
+		if (!provider) throw new Error("当前 Pi 会话没有可用模型。请检查认证或模型配置。");
+		return this.authentication.withProviderOperation(provider, async () => {
+			await session.requireResolvedAuthentication();
+			await session.compact();
+			return session.getRuntimeState();
+		});
 	}
 
 	async inspectImageAttachments(paths: readonly string[]): Promise<PiImageAttachment[]> {

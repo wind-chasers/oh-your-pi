@@ -115,6 +115,14 @@ export type PiSessionRenameRequest = PiSessionTranscriptRequest & {
 };
 
 export type PiSessionDeleteRequest = PiSessionTranscriptRequest;
+export type PiSessionForkRequest = PiSessionTranscriptRequest;
+
+export type PiSessionDropRequest = PiSessionTranscriptRequest;
+
+export type PiSessionCompactRequest = {
+	sessionPath: string;
+};
+
 
 export type PiSessionCommand = {
 	sessionPath: string;
@@ -203,6 +211,7 @@ export type PiAuthenticationEvent = {
 	promptId: string | null;
 	placeholder: string | null;
 	inputType: "text" | "secret" | "manual_code" | "select" | null;
+	allowsEmpty?: boolean;
 	options: PiAuthenticationPromptOption[];
 };
 

@@ -1,12 +1,19 @@
+import fuzzysort from "fuzzysort";
 import type { CommandDefinition } from "./model";
 
-const MOCK_COMMANDS: readonly CommandDefinition[] = [
-	{ description: "解释当前上下文中的实现", name: "explain" },
-	{ description: "修复当前问题", name: "fix" },
-	{ description: "审查当前变更", name: "review" },
-	{ description: "总结当前上下文", name: "summarize" },
-	{ description: "运行相关验证", name: "test" },
+const COMMANDS: readonly CommandDefinition[] = [
+	{ description: "新建并切换到空白会话", id: "new", name: "new" },
+	{ description: "复制当前活动分支到独立会话", id: "fork", name: "fork" },
+	{ description: "删除当前会话并新建会话", id: "drop", name: "drop" },
+	{ description: "压缩当前会话的上下文", id: "compact", name: "compact" },
+	{ description: "打开应用设置", id: "settings", name: "settings" },
+	{ description: "连接或重新配置模型提供商", id: "login", name: "login" },
+	{ description: "管理模型提供商认证", id: "logout", name: "logout" },
 ];
+
+function normalize(value: string): string {
+	return value.trim().normalize("NFKC").toLocaleLowerCase();
+}
 
 export interface CommandSource {
 	search: (query: string) => readonly CommandDefinition[];
@@ -14,8 +21,13 @@ export interface CommandSource {
 
 export const commandSource: CommandSource = {
 	search(query) {
-		const normalizedQuery = query.toLocaleLowerCase();
-		if (normalizedQuery === "") return MOCK_COMMANDS;
-		return MOCK_COMMANDS.filter(({ name }) => name.toLocaleLowerCase().includes(normalizedQuery));
+		const normalizedQuery = normalize(query);
+		if (normalizedQuery === "") return COMMANDS;
+		return fuzzysort.go(normalizedQuery, COMMANDS, {
+			keys: [
+				(command) => normalize(command.name),
+				(command) => normalize(command.description),
+			],
+		}).map(({ obj }) => obj);
 	},
 };

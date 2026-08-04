@@ -6,6 +6,7 @@ import { ChatComposer } from "./chat/composer";
 import { ChatHeader } from "./chat/ChatHeader";
 import { ChatTranscript } from "./chat/ChatTranscript";
 import { ToolPermissionPrompt } from "./chat/ToolPermissionPrompt";
+import { SessionCommandDialog } from "./SessionCommandDialog";
 import { EditMessageAtom } from './session.atom';
 
 export { SessionProvider } from './session.atom';
@@ -93,6 +94,7 @@ export function SessionChat({
 						session={session}
 						queuedInputs={queuedInputs}
 					/>
+					<SessionCommandDialog />
 				</>
 			)}
 		</section>
