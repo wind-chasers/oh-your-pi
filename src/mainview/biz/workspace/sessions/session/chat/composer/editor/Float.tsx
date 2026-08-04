@@ -1,14 +1,14 @@
 import { useEffect, type RefObject } from "react";
-import { ChatEditorAtom } from "@view/biz/workspace/sessions/session/session.atom";
 import { Popover, PopoverAnchor, PopoverContent } from "@view/components/ui/popover";
+import type { EditorRuntime } from "./state";
 
 interface EditorFloatProps {
 	anchorRef: RefObject<HTMLTextAreaElement | null>;
 	disabled?: boolean;
+	editor: EditorRuntime;
 }
 
-export function EditorFloat({ anchorRef, disabled }: EditorFloatProps) {
-	const editor = ChatEditorAtom.useDerived();
+export function EditorFloat({ anchorRef, disabled, editor }: EditorFloatProps) {
 	const active = editor.useFloatState();
 
 	useEffect(() => {

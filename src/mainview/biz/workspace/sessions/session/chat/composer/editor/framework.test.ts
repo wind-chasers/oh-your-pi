@@ -12,9 +12,16 @@ mock.module("@view/lib/pi-client", () => ({
 }));
 
 // 动态加载：pi-client mock 必须先于依赖链安装，静态 import 无法满足此顺序。
-const { createEditorExtensionRegistry, editorExtensionRegistry } = await import("./extensions");
+const {
+	chatExtensionRegistry,
+	createEditorExtensionRegistry,
+} = await import("./extensions");
 const { applyEditorTextEdit } = await import("./framework");
-const { deriveEditorState, zeroEditorState } = await import("./state");
+const {
+	deriveChatEditorState,
+	deriveEditEditorState,
+	zeroEditorState,
+} = await import("./state");
 
 function input(
 	draft: string,
@@ -33,7 +40,11 @@ function input(
 }
 
 function editor() {
-	return deriveEditorState(unit({ ...zeroEditorState }));
+	return deriveChatEditorState(unit({ ...zeroEditorState }));
+}
+
+function editEditor() {
+	return deriveEditEditorState(unit({ ...zeroEditorState }));
 }
 
 
@@ -61,6 +72,14 @@ describe("editor extension framework", () => {
 		expect(instance.get().active?.extension.id).toBe("command");
 	});
 
+	test("历史编辑器不激活会话命令", () => {
+		const instance = editEditor();
+		trigger(instance, "执行 /", "/");
+		expect(instance.get().active).toBeNull();
+		trigger(instance, "选择 #", "#");
+		expect(instance.get().active?.extension.id).toBe("skill");
+	});
+
 	test("InputEvent 元数据缺失时从单字符 draft 增量恢复 trigger", () => {
 		for (const [character, extensionId] of [
 			["@", "file"],
@@ -72,7 +91,7 @@ describe("editor extension framework", () => {
 				instance.input(input(character, 1, null, inputType));
 				expect(instance.get().active?.extension.id).toBe(extensionId);
 				expect(instance.get().active?.extension).toBe(
-					editorExtensionRegistry.byTrigger.get(character),
+					chatExtensionRegistry.byTrigger.get(character),
 				);
 			}
 		}
@@ -118,14 +137,14 @@ describe("editor extension framework", () => {
 	});
 
 	test("注册表不向 framework 暴露候选数据类型", () => {
-		expect(editorExtensionRegistry.byTrigger.get("@")?.id).toBe("file");
-		expect(editorExtensionRegistry.byTrigger.get("#")?.id).toBe("skill");
-		expect(editorExtensionRegistry.byTrigger.get("/")?.id).toBe("command");
+		expect(chatExtensionRegistry.byTrigger.get("@")?.id).toBe("file");
+		expect(chatExtensionRegistry.byTrigger.get("#")?.id).toBe("skill");
+		expect(chatExtensionRegistry.byTrigger.get("/")?.id).toBe("command");
 	});
 
 	test("注册表拒绝重复 id 与 trigger", () => {
-		const file = editorExtensionRegistry.byTrigger.get("@");
-		const skill = editorExtensionRegistry.byTrigger.get("#");
+		const file = chatExtensionRegistry.byTrigger.get("@");
+		const skill = chatExtensionRegistry.byTrigger.get("#");
 		if (!file || !skill) throw new Error("Expected registered editor extensions");
 		expect(() => createEditorExtensionRegistry([file, file])).toThrow("Duplicate editor extension id");
 		const duplicateTrigger = { ...skill, id: "other", triggers: ["@"] };

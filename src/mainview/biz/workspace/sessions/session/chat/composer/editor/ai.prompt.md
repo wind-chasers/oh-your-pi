@@ -1,6 +1,6 @@
 # Chat Editor
 
-本目录实现会话输入框及其 Extension Framework。草稿和活跃 extension 由 `SessionProvider` 作用域内的 `ChatEditorAtom` 持有；发送、附件和会话命令属于上层 [`../ai.prompt.md`](../ai.prompt.md)。
+本目录实现会话输入框及其 Extension Framework。`SessionProvider` 内的 `ChatEditorAtom` 与 `EditEditorAtom` 分别持有新消息和历史消息编辑的草稿及活跃 extension；发送、附件和会话命令属于上层 [`../ai.prompt.md`](../ai.prompt.md)。
 
 ## 心智模型
 
@@ -74,13 +74,14 @@ interface ChatEditorState {
 
 extension 是 registry 中的固定对象；state 属于本次激活。active 直接保存 extension 实例，后续 transition、command 和 Panel 渲染不再按 ID 查询。
 
-`ChatEditorAtom` 在 [`../../../session.atom.ts`](../../../session.atom.ts) 中组装。framework 统一看到的注册类型使用 `any`，但 `defineEditorExtension()` 会保留每个插件内部 state 和 Panel event 的具体类型。
+`ChatEditorAtom` 与 `EditEditorAtom` 在 [`../../../session.atom.ts`](../../../session.atom.ts) 中以同一 `deriveEditorState` runtime 组装；后者使用不含 command 的 registry。framework 统一看到的注册类型使用 `any`，但 `defineEditorExtension()` 会保留每个插件内部 state 和 Panel event 的具体类型。
 
 订阅保持拆分：
 
 - `EditorTextarea` 只订阅 `useDraft()`。
 - `EditorFloat` 只订阅 `useFloatState()`。
 - `ChatComposer` 只订阅 `useValid()`。
+- `EditComposer` 通过同一 runtime 的 `useValid()` 订阅历史消息草稿；进入编辑时由 `EditMessageAtom.start()` 初始化原文本。
 
 不要把候选列表、统一 active index、loading/empty/error UI 或插件私有状态提升进 framework。
 
@@ -213,7 +214,7 @@ Map {
 }
 ```
 
-`getEditorExtensionByTrigger("@")` 返回 `fileExtension`，然后调用 `fileExtension.activate()` 创建初始状态：
+当前 editor runtime 使用自身注入的 registry 从 `byTrigger` 查找 `fileExtension`，然后调用 `fileExtension.activate()` 创建初始状态：
 
 ```ts
 {
@@ -370,7 +371,7 @@ Panel 完整拥有 header、候选项、loading、empty、error、鼠标交互�
 
 - `file`，trigger `@`：允许路径中的 `/` 和 `.`，选择后把 query 替换为完整路径并保留 `@`；候选来自主进程搜索服务（`searchWorkspaceFiles` RPC），目录候选保留尾部 `/` 且接受后不关闭 token，可继续下钻。
 - `skill`，trigger `#`：候选来自 `WorkspaceAtom.resources.skillDetails` 的 workspace snapshot；Panel 以名称和描述做本地模糊筛选，选择后把整个 token 替换为 `[#skill:name]`。
-- `command`，trigger `/`：候选是静态命令集（`new`、`fork`、`drop`、`compact`、`settings`、`login`、`logout`），按名称和描述在 Renderer 本地模糊筛选。Enter 或点击接受后删除整个 `/token` 并发出 command effect；Tab 仅在当前候选是 query 的严格前缀补全时完成名称，不执行命令；已完整匹配或仅 fuzzy 命中时，`EditorTextarea` 写入字面制表符。`Editor` 内部的 `useEditorEffectHandler()` 负责创建会话、打开确认弹窗、压缩会话或打开全局 dialog。
+- `command`，trigger `/`：候选是静态命令集（`new`、`fork`、`drop`、`compact`、`settings`、`login`、`logout`），仅注册给 `ChatEditorAtom`。Enter 或点击接受后删除整个 `/token` 并发出 command effect；Tab 仅在当前候选是 query 的严格前缀补全时完成名称，不执行命令；已完整匹配或仅 fuzzy 命中时，`EditorTextarea` 写入字面制表符。`Editor` 内部的 `useEditorEffectHandler()` 负责创建会话、打开确认弹窗、压缩会话或打开全局 dialog。
 
 `skill` 的候选已在 workspace 加载或资源 refresh 时进入 Renderer，不为 query 发 RPC；Panel 计算筛选结果后通过 `dispatch({ type: "results", ... })` 回写插件 state，键盘和鼠标都从该 state 读取同一份候选。`command` 的候选是同步静态数据；`file` 已接入真实异步数据。异步候选属于插件内部，不修改 framework 协议：Panel 通过 `dispatch({ type: "search", ... })` 把搜索结果回写到插件 state（`files`/`status`），键盘命令和 Panel 点击都从 `state.files` 读取同一份候选。query 变化时 `transition` 把 `status` 置为 `loading` 并清空候选，Panel 的 effect 防抖 60ms 后发起 RPC，用请求序号丢弃过期响应；`degraded` 状态表示 fd 不可用、结果仅来自单层目录匹配。不要把异步候选协议加入 framework。
 

@@ -106,6 +106,7 @@ export function ChatComposer({
 						previewImages={attachmentState.previewImages}
 					/>
 					<Editor
+						atom={ChatEditorAtom}
 						disabled={isSending || !isValidModel}
 						onPaste={handlePaste}
 						placeholder={composerPlaceholder(hasValidProvider, isStreaming)}

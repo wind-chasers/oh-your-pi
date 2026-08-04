@@ -30,12 +30,14 @@ export function createEditorExtensionRegistry(
 	return { byTrigger };
 }
 
-export const editorExtensionRegistry = createEditorExtensionRegistry([
+export const chatExtensionRegistry = createEditorExtensionRegistry([
 	fileExtension,
 	skillExtension,
 	commandExtension,
 ]);
 
-export function getEditorExtensionByTrigger(trigger: string): RegisteredEditorExtension | null {
-	return editorExtensionRegistry.byTrigger.get(trigger) ?? null;
-}
+export const editExtensionRegistry = createEditorExtensionRegistry([
+	fileExtension,
+	skillExtension,
+]);
+

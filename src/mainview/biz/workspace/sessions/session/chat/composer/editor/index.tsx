@@ -1,5 +1,6 @@
 import {
 	useCallback,
+	useEffect,
 	useRef,
 	type ChangeEvent,
 	type ComponentPropsWithoutRef,
@@ -7,15 +8,30 @@ import {
 	type RefObject,
 	type SyntheticEvent,
 } from "react";
-import { ChatEditorAtom } from "@view/biz/workspace/sessions/session/session.atom";
 import { useEditorEffectHandler } from "./effects";
 import { EditorFloat } from "./Float";
 import type { EditorTextEdit } from "./framework";
+import type { EditorRuntime } from "./state";
 
-type EditorProps = Pick<ComponentPropsWithoutRef<"textarea">, "disabled" | "onPaste" | "placeholder">;
+type EditorAtom = { useDerived: () => EditorRuntime };
+type EditorProps = Pick<ComponentPropsWithoutRef<"textarea">, "disabled" | "onPaste" | "placeholder"> & {
+	atom: EditorAtom;
+	focusOnMount?: boolean;
+};
 
 interface EditorTextareaProps extends ComponentPropsWithoutRef<"textarea"> {
 	area: RefObject<HTMLTextAreaElement | null>;
+	editor: EditorRuntime;
+}
+
+function AutoFocus({ area }: { area: RefObject<HTMLTextAreaElement | null> }) {
+	useEffect(() => {
+		const textarea = area.current;
+		if (!textarea) return;
+		textarea.focus();
+		textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+	}, [area]);
+	return null;
 }
 
 function apply(textarea: HTMLTextAreaElement, edit: EditorTextEdit) {
@@ -29,9 +45,9 @@ function apply(textarea: HTMLTextAreaElement, edit: EditorTextEdit) {
 	});
 }
 
-export function Editor(props: EditorProps) {
+export function Editor({ atom, focusOnMount, ...props }: EditorProps) {
 	const area = useRef<HTMLTextAreaElement>(null);
-	const editor = ChatEditorAtom.useDerived();
+	const editor = atom.useDerived();
 	const onEffect = useEditorEffectHandler();
 	const applyEdit = useCallback((edit: EditorTextEdit) => {
 		const textarea = area.current;
@@ -40,14 +56,14 @@ export function Editor(props: EditorProps) {
 	editor.useRegisterHandlers(applyEdit, onEffect);
 	return (
 		<>
-			<EditorTextarea {...props} area={area} />
-			<EditorFloat anchorRef={area} disabled={props.disabled} />
+			<EditorTextarea {...props} area={area} editor={editor} />
+			<EditorFloat anchorRef={area} disabled={props.disabled} editor={editor} />
+			{focusOnMount && <AutoFocus area={area} />}
 		</>
 	);
 }
 
-function EditorTextarea({ area, ...props }: EditorTextareaProps) {
-	const editor = ChatEditorAtom.useDerived();
+function EditorTextarea({ area, editor, ...props }: EditorTextareaProps) {
 	const draft = editor.useDraft();
 	const composing = useRef(false);
 
@@ -128,4 +144,3 @@ function EditorTextarea({ area, ...props }: EditorTextareaProps) {
 		/>
 	);
 }
-

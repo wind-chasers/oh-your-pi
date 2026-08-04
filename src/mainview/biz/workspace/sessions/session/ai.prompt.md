@@ -19,7 +19,7 @@ useChatSession(workspacePath, sessionId, sessionPath)
 - `snapshot.isSending`、`isRefreshing`、`error`：会话请求状态。
 - `session.view.items`：由 `SessionView` 缓存的持久 render items。
 
-`SessionProvider` 保存当前 session 的局部跨组件 UI 状态：`EditMessageAtom` 管理消息编辑目标，`ChatEditorAtom` 管理新消息 draft 与 active editor extension。`Editor` 只订阅完整 draft 并派发输入、选择和语义命令，`EditorFloat` 只宿主 registry 中当前 extension 提供的 Panel，`ChatComposer` 只订阅草稿是否有效；待发送附件、预览和 prompt / steer / follow-up 用户意图仍由 `ChatComposer` 内聚。切换 session identity 时由父组件 key 重建 `SessionProvider` 与 Composer；后台 session 继续由 Chat Store 接收事件，不随界面卸载终止。
+`SessionProvider` 保存当前 session 的局部跨组件 UI 状态：`EditMessageAtom` 管理消息编辑目标并初始化 `EditEditorAtom`，`ChatEditorAtom` 管理新消息 draft 与完整 extension registry；两套 editor runtime 分别持有 draft、active extension 与 DOM handler。`EditEditorAtom` 只注册 file 与 skill extension，避免历史消息编辑触发会话 command。`Editor` 只订阅完整 draft 并派发输入、选择和语义命令，`EditorFloat` 只宿主 registry 中当前 extension 提供的 Panel，`ChatComposer` 只订阅草稿是否有效；待发送附件、预览和 prompt / steer / follow-up 用户意图仍由 `ChatComposer` 内聚。切换 session identity 时由父组件 key 重建 `SessionProvider` 与 Composer；后台 session 继续由 Chat Store 接收事件，不随界面卸载终止。
 
 ## 用户意图
 

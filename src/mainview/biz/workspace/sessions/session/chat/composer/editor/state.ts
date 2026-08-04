@@ -1,6 +1,6 @@
 import { useLayoutEffect } from "react";
 import type { Unit } from "@view/atom/local";
-import { getEditorExtensionByTrigger } from "./extensions";
+import { chatExtensionRegistry, editExtensionRegistry, type EditorExtensionRegistry } from "./extensions";
 import {
 	applyEditorTextEdit,
 	getInsertedTrigger,
@@ -25,11 +25,14 @@ export const zeroEditorState: ChatEditorState = { active: null, draft: "" };
 const NOOP = () => {};
 const NOOP_HANDLERS: EditorHandlers = { effect: NOOP, edit: NOOP };
 
-export function deriveEditorState({ get, set, select }: Unit<ChatEditorState>) {
+function createEditorRuntime(
+	{ get, set, select }: Unit<ChatEditorState>,
+	registry: EditorExtensionRegistry,
+) {
 	function activate(input: EditorInput, previousDraft: string): ActiveEditorExtension | null {
 		const trigger = getInsertedTrigger(input, previousDraft);
 		if (!trigger) return null;
-		const extension = getEditorExtensionByTrigger(trigger.character);
+		const extension = registry.byTrigger.get(trigger.character);
 		if (!extension) return null;
 		const state = extension.activate({
 			draft: input.draft,
@@ -142,8 +145,8 @@ export function deriveEditorState({ get, set, select }: Unit<ChatEditorState>) {
 		return true;
 	}
 
-	function reset(): void {
-		set(zeroEditorState);
+	function reset(draft?: string): void {
+		set(draft === undefined ? zeroEditorState : { active: null, draft });
 	}
 
 	const useValid = select(({ draft }) => draft.trim() !== "");
@@ -164,3 +167,9 @@ export function deriveEditorState({ get, set, select }: Unit<ChatEditorState>) {
 		useRegisterHandlers,
 	};
 }
+
+export const deriveChatEditorState = (unit: Unit<ChatEditorState>) => createEditorRuntime(unit, chatExtensionRegistry);
+export const deriveEditEditorState = (unit: Unit<ChatEditorState>) => createEditorRuntime(unit, editExtensionRegistry);
+
+
+export type EditorRuntime = ReturnType<typeof createEditorRuntime>;

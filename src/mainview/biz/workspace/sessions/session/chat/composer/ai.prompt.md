@@ -1,10 +1,11 @@
 # Chat Composer
 
-本目录负责会话输入区的纯 UI 状态与用户输入意图：草稿由 `SessionProvider` 作用域内的 `ChatEditorAtom` 持有，待发送图片与预览仍由 `ChatComposer` 持有；本目录还负责粘贴解析、模型/thinking 选择和发送操作。会话事实与命令生命周期属于 [`../../../../../../chat-store/ai.prompt.md`](../../../../../../chat-store/ai.prompt.md)；图片的可信解码与最终编码属于主进程 `src/bun/pi/session/image-attachments.ts`。
+本目录负责会话输入区的纯 UI 状态与用户输入意图：新消息与历史消息编辑分别使用 `SessionProvider` 作用域内的 `ChatEditorAtom` 和 `EditEditorAtom`，两者复用 Editor framework 但不共享 draft 或 active extension；待发送图片与预览仍由各自 Composer 持有。本目录还负责粘贴解析、模型/thinking 选择和发送操作。会话事实与命令生命周期属于 [`../../../../../../chat-store/ai.prompt.md`](../../../../../../chat-store/ai.prompt.md)；图片的可信解码与最终编码属于主进程 `src/bun/pi/session/image-attachments.ts`。
 
 ## 模块结构
 
 - `ChatComposer.tsx`：订阅草稿是否有效，协调输入框、附件列表、工具栏和错误展示；不直接调用 RPC。
+- `EditComposer.tsx`：以 `EditEditorAtom` 重用 Editor 的 file/skill 补全；进入编辑时 `EditMessageAtom.start()` 写入历史文本，成功 regenerate 或取消后重置。
 - `editor/index.tsx`：Editor 公共入口；外层创建稳定 textarea ref，并将只订阅 draft 的 textarea 与只订阅 active extension 的 Float 渲染为兄弟节点。
 - `editor/Float.tsx`：通过 `PopoverAnchor.virtualRef` 使用 textarea DOM 定位，并挂载当前 extension Panel。
 - `editor/state.ts`：定义 `ChatEditorState` 和 `deriveEditorState`，路由输入、选择、命令和 Panel 事件，并统一消费 extension result、更新状态、应用文本编辑和执行 effect。
@@ -96,7 +97,7 @@ flowchart LR
 
 ## 附件状态不变量
 
-- draft 与 active extension 由 `ChatEditorAtom` 保存：内部 `EditorTextarea` 只通过 `useDraft` 订阅文本，`EditorFloat` 只通过 `useFloatState` 订阅 active extension，`ChatComposer` 只通过 `useValid` 订阅“trim 后是否非空”。
+- 新消息与历史消息分别由 `ChatEditorAtom` 和 `EditEditorAtom` 保存，两个 runtime 独立订阅 draft 与 active extension；`ChatComposer` 只通过 `ChatEditorAtom.useValid()` 订阅“trim 后是否非空”。
 - `EditorTextarea` 与 `EditorFloat` 是独立订阅的兄弟节点：draft 更新只调度 textarea，extension state 更新只调度宿主和当前 Panel。二者通过稳定 DOM ref 建立定位关系，不依赖 React children 或父子重渲染。
 - 未发送附件属于 `ChatComposer` 的纯 UI state。draft 与附件都不进入 Chat Store；发送成功后重置，发送失败时保留供重试。
 - 每条消息最多 8 张图片。
