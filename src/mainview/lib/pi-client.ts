@@ -37,6 +37,10 @@ import type {
 	PiWorkspaceSnapshot,
 	PiWorkspaceGit,
 	PiWorkspaceGitBranchRequest,
+	PiPluginSetEnabledRequest,
+	PiPluginInspectionRequest,
+	PiPluginSnapshot,
+	PiPluginSourceRequest,
 } from "@shared/pi-contract";
 import type { PiRpcSchema } from "@shared/pi-rpc";
 
@@ -76,6 +80,26 @@ export async function refreshPiWorkspaceResources(request: PiWorkspaceRequest): 
 	return rpc.request.refreshWorkspaceResources(request);
 }
 
+export async function inspectPiPlugins(request: PiPluginInspectionRequest): Promise<PiPluginSnapshot> {
+	return rpc.request.inspectPlugins(request);
+}
+
+export async function installPiPlugin(request: PiPluginSourceRequest): Promise<PiPluginSnapshot> {
+	return rpc.request.installPlugin(request);
+}
+
+export async function updatePiPlugin(request: PiPluginSourceRequest): Promise<PiPluginSnapshot> {
+	return rpc.request.updatePlugin(request);
+}
+
+export async function removePiPlugin(request: PiPluginSourceRequest): Promise<PiPluginSnapshot> {
+	return rpc.request.removePlugin(request);
+}
+
+export async function setPiPluginEnabled(request: PiPluginSetEnabledRequest): Promise<PiPluginSnapshot> {
+	return rpc.request.setPluginEnabled(request);
+}
+
 export async function inspectPiAuthentication(): Promise<PiAuthenticationStatus[]> {
 	return rpc.request.inspectAuthentication({});
 }
@@ -99,6 +123,10 @@ export async function choosePiImageAttachments(): Promise<PiImageAttachment[]> {
 
 export async function choosePiWorkspace(): Promise<PiWorkspacePickerResult> {
 	return rpc.request.chooseWorkspace({});
+}
+
+export async function openPiPackages(): Promise<void> {
+	return rpc.request.openPiPackages({});
 }
 
 export async function openPiWorkspaceFolder(request: PiWorkspaceRequest): Promise<void> {

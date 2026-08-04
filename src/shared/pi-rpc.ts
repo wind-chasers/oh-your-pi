@@ -37,6 +37,10 @@ import type {
 	PiWorkspaceFileRequest,
 	PiWorkspaceGit,
 	PiWorkspaceGitBranchRequest,
+	PiPluginSetEnabledRequest,
+	PiPluginInspectionRequest,
+	PiPluginSnapshot,
+	PiPluginSourceRequest,
 } from "./pi-contract";
 
 export interface PiRpcSchema extends ElectrobunRPCSchema {
@@ -49,6 +53,7 @@ export interface PiRpcSchema extends ElectrobunRPCSchema {
 			inspectWorkspace: { params: PiWorkspaceRequest; response: PiWorkspaceSnapshot };
 			refreshWorkspaceResources: { params: PiWorkspaceRequest; response: PiWorkspaceRefreshResult };
 			chooseWorkspace: { params: Record<string, never>; response: PiWorkspacePickerResult };
+			openPiPackages: { params: Record<string, never>; response: void };
 			chooseImageAttachments: { params: Record<string, never>; response: PiImageAttachment[] };
 			listWorkspaceFiles: { params: PiWorkspaceFileRequest; response: PiWorkspaceFile[] };
 			readWorkspaceFile: { params: PiWorkspaceFileRequest; response: PiWorkspaceFileContent };
@@ -56,6 +61,11 @@ export interface PiRpcSchema extends ElectrobunRPCSchema {
 			openWorkspaceFolder: { params: PiWorkspaceRequest; response: void };
 			inspectWorkspaceGit: { params: PiWorkspaceRequest; response: PiWorkspaceGit | null };
 			switchWorkspaceGitBranch: { params: PiWorkspaceGitBranchRequest; response: PiWorkspaceGit };
+			inspectPlugins: { params: PiPluginInspectionRequest; response: PiPluginSnapshot };
+			installPlugin: { params: PiPluginSourceRequest; response: PiPluginSnapshot };
+			updatePlugin: { params: PiPluginSourceRequest; response: PiPluginSnapshot };
+			removePlugin: { params: PiPluginSourceRequest; response: PiPluginSnapshot };
+			setPluginEnabled: { params: PiPluginSetEnabledRequest; response: PiPluginSnapshot };
 			readSessionTranscript: { params: PiSessionTranscriptRequest; response: PiSessionTranscript };
 			openSession: { params: PiSessionTranscriptRequest; response: PiOpenedSession };
 			renameSession: { params: PiSessionRenameRequest; response: PiSessionRenameResult };

@@ -26,6 +26,7 @@ export function createPiRpc(options: { app: Application; desktop: DesktopSystem 
 				chooseWorkspace: async () => ({
 					workspacePath: await desktop.chooseWorkspaceDirectory(),
 				}),
+				openPiPackages: () => desktop.openExternalUrl("https://pi.dev/packages"),
 				chooseImageAttachments: async () =>
 					app.session.inspectImageAttachments(await desktop.chooseImageFiles()),
 				openWorkspaceFolder: (input) => desktop.openWorkspaceFolder(input.workspacePath),
@@ -34,6 +35,11 @@ export function createPiRpc(options: { app: Application; desktop: DesktopSystem 
 				listWorkspaceFiles: (input) => app.workspace.listFiles(input),
 				readWorkspaceFile: (input) => app.workspace.readFile(input),
 				searchWorkspaceFiles: (input) => app.workspace.searchFiles(input),
+				inspectPlugins: (input) => app.inspectPlugins(input),
+				installPlugin: (input) => app.installPlugin(input),
+				updatePlugin: (input) => app.updatePlugin(input),
+				removePlugin: (input) => app.removePlugin(input),
+				setPluginEnabled: (input) => app.setPluginEnabled(input),
 				readSessionTranscript: (input) => app.session.readTranscript(input),
 				openSession: (input) => app.session.open(input),
 				createSession: (input) => app.session.create(input),

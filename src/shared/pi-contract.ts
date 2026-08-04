@@ -239,6 +239,44 @@ export type PiWorkspaceSnapshot = {
 	sessions: PiSessionSummary[];
 };
 
+export type PiPluginScope = "global" | "workspace";
+
+export type PiPluginResourceKind = "extension" | "skill" | "prompt";
+
+export type PiPluginResource = {
+	enabled: boolean;
+	kind: PiPluginResourceKind;
+	name: string;
+	path: string;
+};
+
+export type PiPlugin = {
+	enabled: boolean;
+	installedPath: string | null;
+	installedVersion: string | null;
+	resources: PiPluginResource[];
+	scope: PiPluginScope;
+	source: string;
+	toggleable: boolean;
+};
+
+export type PiPluginSnapshot = {
+	plugins: PiPlugin[];
+};
+
+export type PiPluginInspectionRequest = {
+	workspacePath?: string;
+};
+
+export type PiPluginSourceRequest = PiPluginInspectionRequest & {
+	scope: PiPluginScope;
+	source: string;
+};
+
+export type PiPluginSetEnabledRequest = PiPluginSourceRequest & {
+	enabled: boolean;
+};
+
 export type PiToolPermissionRequest = {
 	id: string;
 	sessionPath: string;

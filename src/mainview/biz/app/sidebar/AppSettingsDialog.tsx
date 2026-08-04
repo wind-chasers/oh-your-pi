@@ -24,6 +24,7 @@ import {
 } from "@view/states/authentication.atom";
 import { NetworkOnlineAtom } from "@view/states/network.atom";
 import { AppSettingsDialogOpenAtom, ShowThinkingAtom } from "@view/states/preferences.atom";
+import { PluginManagerDialogOpenAtom } from "@view/states/plugins";
 
 
 export function AppSettingsDialog(): ReactElement {
@@ -33,6 +34,7 @@ export function AppSettingsDialog(): ReactElement {
 	const isNetworkOnline = NetworkOnlineAtom.useValue();
 	const [showThinking, thinking] = ShowThinkingAtom.use();
 	const setAuthenticationOpen = AuthenticationDialogOpenAtom.useSet();
+	const setPluginManagerOpen = PluginManagerDialogOpenAtom.useSet();
 	useEffect(() => subscribeToOpenAppSettings(() => setOpen(true)), [setOpen]);
 	return (
 		<Dialog onOpenChange={setOpen} open={open}>
@@ -81,6 +83,17 @@ export function AppSettingsDialog(): ReactElement {
 							</p>
 						</div>
 						<Button disabled={disabled} onClick={() => setAuthenticationOpen(true)} size="xs" type="button" variant="outline">
+							管理
+						</Button>
+					</div>
+				</section>
+				<section className="border-t pt-4">
+					<div className="flex items-center justify-between gap-3">
+						<div>
+							<p className="text-sm font-medium">Pi 插件</p>
+							<p className="mt-1 text-xs text-muted-foreground">管理扩展、技能与提示词 package。</p>
+						</div>
+						<Button disabled={disabled} onClick={() => setPluginManagerOpen(true)} size="xs" type="button" variant="outline">
 							管理
 						</Button>
 					</div>
