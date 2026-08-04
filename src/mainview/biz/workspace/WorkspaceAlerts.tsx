@@ -5,8 +5,8 @@ import { NetworkOnlineAtom } from "@view/states/network.atom";
 
 
 export function WorkspaceAlerts(): ReactElement {
-	const error = WorkspaceErrorAtom.useData();
-	const isNetworkOnline = NetworkOnlineAtom.useData();
+	const error = WorkspaceErrorAtom.useValue();
+	const isNetworkOnline = NetworkOnlineAtom.useValue();
 	return (
 		<>
 			{!isNetworkOnline ? (

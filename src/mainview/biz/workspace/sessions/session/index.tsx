@@ -6,9 +6,10 @@ import { ChatComposer } from "./chat/composer";
 import { ChatHeader } from "./chat/ChatHeader";
 import { ChatTranscript } from "./chat/ChatTranscript";
 import { ToolPermissionPrompt } from "./chat/ToolPermissionPrompt";
-import { EditMessageAtom } from './editing-message';
+import { SessionCommandDialog } from "./SessionCommandDialog";
+import { EditMessageAtom } from './session.atom';
 
-export * from './editing-message';
+export { SessionProvider } from './session.atom';
 
 type SessionChatProps = {
 	isFileTreeOpen: boolean;
@@ -26,13 +27,13 @@ export function SessionChat({
 	workspacePath,
 }: SessionChatProps): ReactElement {
 	const [snapshot, session] = useChatSession(workspacePath, sessionId, sessionPath);
-	const showThinking = ShowThinkingAtom.useData();
-	const setWorkspace = WorkspaceAtom.useChange();
+	const showThinking = ShowThinkingAtom.useValue();
+	const setWorkspace = WorkspaceAtom.useSet();
 	const openedSession = snapshot.openedSession;
 	const renderItems = session.view.items;
 	const isStreaming = openedSession?.runtime.isStreaming ?? false;
 	const sessionSummary = openedSession?.transcript.session;
-	const editing = EditMessageAtom.useData();
+	const editing = EditMessageAtom.useValue();
 
 	useEffect(() => {
 		if (!sessionSummary) return;
@@ -93,6 +94,7 @@ export function SessionChat({
 						session={session}
 						queuedInputs={queuedInputs}
 					/>
+					<SessionCommandDialog />
 				</>
 			)}
 		</section>

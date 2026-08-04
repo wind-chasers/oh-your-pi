@@ -22,6 +22,18 @@ describe("App", () => {
 		}
 	});
 
+	test("未选择工作区时仍可读取全局 Pi 插件", async () => {
+		const pi = await PiRuntime.create();
+		const app = new Application(pi);
+		try {
+			const plugins = await app.inspectPlugins({});
+			expect(Array.isArray(plugins.plugins)).toBe(true);
+		} finally {
+			await app.dispose();
+			await pi.dispose();
+		}
+	});
+
 	test("认证提供商可在未选择工作区时读取", async () => {
 		const pi = await PiRuntime.create();
 		const app = new Application(pi);

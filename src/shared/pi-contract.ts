@@ -59,6 +59,17 @@ export type PiWorkspaceFile = {
 	type: "directory" | "file";
 };
 
+export type PiFileSearchRequest = PiWorkspaceRequest & {
+	query: string;
+};
+
+export type PiFileSearchItem = [path: string, isDir: 0 | 1];
+
+export type PiFileSearchResult = {
+	degraded: boolean;
+	items: PiFileSearchItem[];
+};
+
 export type PiWorkspaceFileContent = {
 	content: string;
 	isBinary: boolean;
@@ -104,6 +115,14 @@ export type PiSessionRenameRequest = PiSessionTranscriptRequest & {
 };
 
 export type PiSessionDeleteRequest = PiSessionTranscriptRequest;
+export type PiSessionForkRequest = PiSessionTranscriptRequest;
+
+export type PiSessionDropRequest = PiSessionTranscriptRequest;
+
+export type PiSessionCompactRequest = {
+	sessionPath: string;
+};
+
 
 export type PiSessionCommand = {
 	sessionPath: string;
@@ -157,6 +176,10 @@ export type PiExtensionResource = PiResourceItem & {
 	tools: string[];
 };
 
+export type PiSkillResource = PiResourceItem & {
+	description: string;
+};
+
 export type PiAuthenticationStatus = {
 	provider: string;
 	name: string;
@@ -188,6 +211,7 @@ export type PiAuthenticationEvent = {
 	promptId: string | null;
 	placeholder: string | null;
 	inputType: "text" | "secret" | "manual_code" | "select" | null;
+	allowsEmpty?: boolean;
 	options: PiAuthenticationPromptOption[];
 };
 
@@ -202,7 +226,7 @@ export type PiResourceSummary = {
 	prompts: number;
 	contextFiles: number;
 	extensionDetails: PiExtensionResource[];
-	skillDetails: PiResourceItem[];
+	skillDetails: PiSkillResource[];
 	promptDetails: PiResourceItem[];
 	diagnostics: PiResourceDiagnostic[];
 };
@@ -213,6 +237,44 @@ export type PiWorkspaceSnapshot = {
 	resources: PiResourceSummary;
 	authentication: PiAuthenticationStatus[];
 	sessions: PiSessionSummary[];
+};
+
+export type PiPluginScope = "global" | "workspace";
+
+export type PiPluginResourceKind = "extension" | "skill" | "prompt";
+
+export type PiPluginResource = {
+	enabled: boolean;
+	kind: PiPluginResourceKind;
+	name: string;
+	path: string;
+};
+
+export type PiPlugin = {
+	enabled: boolean;
+	installedPath: string | null;
+	installedVersion: string | null;
+	resources: PiPluginResource[];
+	scope: PiPluginScope;
+	source: string;
+	toggleable: boolean;
+};
+
+export type PiPluginSnapshot = {
+	plugins: PiPlugin[];
+};
+
+export type PiPluginInspectionRequest = {
+	workspacePath?: string;
+};
+
+export type PiPluginSourceRequest = PiPluginInspectionRequest & {
+	scope: PiPluginScope;
+	source: string;
+};
+
+export type PiPluginSetEnabledRequest = PiPluginSourceRequest & {
+	enabled: boolean;
 };
 
 export type PiToolPermissionRequest = {

@@ -20,7 +20,7 @@ export const AuthenticationDialogOpenAtom = atom(false);
 
 export const AuthenticationAtom = atom(
 	undefined as PiAuthenticationStatus[] | undefined,
-	(_get, set, use) => {
+	({ set }, use) => {
 		function setStatuses(statuses: PiAuthenticationStatus[]): void {
 			set(statuses);
 		}

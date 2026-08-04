@@ -80,6 +80,14 @@ export class ChatStore {
 		return this.workspace(workspacePath).continueRecentSession();
 	}
 
+	public forkSession(workspacePath: string, sessionPath: string): Promise<ChatSession> {
+		return this.workspace(workspacePath).forkSession(sessionPath);
+	}
+
+	public dropSession(workspacePath: string, sessionId: string, sessionPath: string): Promise<ChatSession> {
+		return this.workspace(workspacePath).dropSession(sessionId, sessionPath);
+	}
+
 	public evictInactive(now = this.now()): number {
 		let evicted = 0;
 		for (const [workspacePath, workspace] of this.workspaces) {

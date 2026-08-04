@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import { ProviderAuthenticationDialog } from "../authentication/ProviderAuthenticationDialog";
+import { PluginManagerDialog } from "../plugins/PluginManagerDialog";
 import { WorkspacePage } from "../workspace";
 import { AppSidebar } from "./sidebar/AppSidebar";
 
@@ -9,6 +10,7 @@ export function AppShell(): ReactElement {
 			<AppSidebar />
 			<WorkspacePage />
 			<ProviderAuthenticationDialog />
+			<PluginManagerDialog />
 		</div>
 	);
 }

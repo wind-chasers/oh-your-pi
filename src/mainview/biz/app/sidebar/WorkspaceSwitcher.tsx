@@ -26,8 +26,8 @@ const WORKSPACE_TONES = [
 
 export function WorkspaceSwitcher(): ReactElement {
 	const disabled = AppDisabledAtom.use();
-	const selectedWorkspacePath = WorkspaceAtom.useData()?.workspacePath;
-	const recentWorkspaces = RecentWorkspacesAtom.useData();
+	const selectedWorkspacePath = WorkspaceAtom.useValue()?.workspacePath;
+	const recentWorkspaces = RecentWorkspacesAtom.useValue();
 	const chooseWorkspace = ChooseWorkspaceMutation.use();
 	const selectWorkspace = LoadWorkspaceMutation.use();
 	return (

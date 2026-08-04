@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import {
 	createAgentSessionFromServices,
 	createAgentSessionServices,
@@ -183,11 +184,29 @@ export class PiSession {
 
 	async abort(): Promise<void> {
 		const session = this.requireAgentSession();
-		const clientIds = this.queuedInputs.clear(() => session.clearQueue());
-		if (clientIds.length > 0) {
-			this.emit({ type: "queued_inputs_cleared", clientIds });
-		}
+		this.clearQueuedInputs(session);
 		await session.abort();
+	}
+
+	createClonedSessionManager(): SessionManager {
+		const session = this.requireAgentSession();
+		const leafId = session.sessionManager.getLeafId();
+		if (!leafId) throw new Error("Pi 会话还没有消息，无法复制。");
+		if (!existsSync(this.path)) {
+			throw new Error("当前 Pi 会话尚未保存。请等待首条回复完成后再复制。");
+		}
+		const manager = SessionManager.open(this.path);
+		if (!manager.createBranchedSession(leafId)) {
+			throw new Error("Pi 未能创建会话副本。");
+		}
+		return manager;
+	}
+
+	async compact(): Promise<void> {
+		const session = this.requireAgentSession();
+		this.clearQueuedInputs(session);
+		await session.compact();
+		this.publishTranscriptChanges(session);
 	}
 
 	async requireResolvedAuthentication(): Promise<void> {
@@ -252,6 +271,13 @@ export class PiSession {
 		this.syncPublishedTranscript(session);
 		this.unsubscribeAgent = session.subscribe((event) => this.handleAgentEvent(session, event));
 		this.queuedInputs.reset(session.getSteeringMessages(), session.getFollowUpMessages());
+	}
+
+	private clearQueuedInputs(session: AgentSession): void {
+		const clientIds = this.queuedInputs.clear(() => session.clearQueue());
+		if (clientIds.length > 0) {
+			this.emit({ type: "queued_inputs_cleared", clientIds });
+		}
 	}
 
 	private async disposeRuntime(): Promise<void> {

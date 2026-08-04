@@ -4,7 +4,9 @@ const RECENT_WORKSPACES_KEY = "oh-your-pi.recent-workspaces";
 const SHOW_THINKING_KEY = "oh-your-pi.show-thinking";
 const MAX_RECENT_WORKSPACES = 5;
 
-export const ShowThinkingAtom = atom(false, (get, set) => {
+export const AppSettingsDialogOpenAtom = atom(false);
+
+export const ShowThinkingAtom = atom(false, ({ get, set }) => {
 	set(readShowThinking());
 
 	function change(value: boolean): void {
@@ -16,7 +18,7 @@ export const ShowThinkingAtom = atom(false, (get, set) => {
 	return { change };
 });
 
-export const RecentWorkspacesAtom = atom([] as string[], (get, set) => {
+export const RecentWorkspacesAtom = atom([] as string[], ({ get, set }) => {
 	set(readRecentWorkspaces());
 
 	function add(workspacePath: string): void {

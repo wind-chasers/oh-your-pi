@@ -25,7 +25,7 @@ mock.module("electrobun/view", () => ({
 (globalThis as { window?: unknown }).window = {};
 
 // Dynamic loading is required so the Electrobun mock is installed first.
-const [{ SessionChat, EditMessageProvider }, { AuthenticationAtom }, { chatStore }] = await Promise.all([
+const [{ SessionChat, SessionProvider }, { AuthenticationAtom }, { chatStore }] = await Promise.all([
 	import(".."),
 	import("@view/states/authentication.atom"),
 	import("@view/chat-store"),
@@ -129,7 +129,7 @@ function renderSessionChat(
 		)
 		.hydrate(currentSession);
 	function Fixture(): ReactElement {
-		AuthenticationAtom.useChange().setStatuses(currentAuthentication);
+		AuthenticationAtom.useDerived().setStatuses(currentAuthentication);
 		return (
 			<SessionChat
 				isFileTreeOpen={false}
@@ -144,11 +144,11 @@ function renderSessionChat(
 	return renderToStaticMarkup(
 		<TooltipProvider>
 			<WithStore>
-				<EditMessageProvider>
+				<SessionProvider>
 					<Fixture />
-				</EditMessageProvider>
+				</SessionProvider>
 			</WithStore>
-		</TooltipProvider>
+		</TooltipProvider>,
 	);
 }
 
@@ -213,4 +213,5 @@ describe("SessionChat", () => {
 		expect(html).toContain("连接模型提供商");
 		expect(html).not.toContain(">发送</button>");
 	});
+
 });

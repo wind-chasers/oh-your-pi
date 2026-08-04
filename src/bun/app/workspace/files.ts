@@ -3,7 +3,7 @@ import { basename, relative, resolve } from "node:path";
 import type { PiWorkspaceFile, PiWorkspaceFileContent, PiWorkspaceFileRequest } from "@shared/pi-contract";
 
 const MAX_FILE_BYTES = 512 * 1024;
-const HIDDEN_DIRECTORIES = new Set([".git", "node_modules", "dist", "build", ".next"]);
+export const HIDDEN_DIRECTORIES = new Set([".git", "node_modules", "dist", "build", ".next"]);
 
 export async function listWorkspaceFiles(input: PiWorkspaceFileRequest): Promise<PiWorkspaceFile[]> {
 	const directory = await resolveExistingWorkspacePath(input.workspacePath, input.relativePath);

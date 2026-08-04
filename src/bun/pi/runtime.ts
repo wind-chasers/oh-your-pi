@@ -6,6 +6,13 @@ import { PiAuthentication } from "./authentication";
 import { PiSessionRegistry } from "./session/registry";
 import { PiSession } from "./session";
 import { PiWorkspace } from "./workspace";
+import {
+	inspectPiPlugins,
+	installPiPlugin,
+	removePiPlugin,
+	setPiPluginEnabled,
+	updatePiPlugin,
+} from "./plugins";
 
 type PiBunRuntime = {
 	version: string;
@@ -57,6 +64,31 @@ export class PiRuntime {
 		);
 		this.workspaces.set(resolvedWorkspacePath, workspace);
 		return workspace;
+	}
+
+	async inspectPlugins(workspacePath?: string) {
+		return inspectPiPlugins({ agentDir: this.agentDir, workspacePath: await this.resolvePluginWorkspace(workspacePath) });
+	}
+
+	async installPlugin(source: string, scope: "global" | "workspace", workspacePath?: string): Promise<void> {
+		await installPiPlugin({ agentDir: this.agentDir, scope, source, workspacePath: await this.resolvePluginWorkspace(workspacePath) });
+	}
+
+	async updatePlugin(source: string, scope: "global" | "workspace", workspacePath?: string): Promise<void> {
+		await updatePiPlugin({ agentDir: this.agentDir, scope, source, workspacePath: await this.resolvePluginWorkspace(workspacePath) });
+	}
+
+	async removePlugin(source: string, scope: "global" | "workspace", workspacePath?: string): Promise<void> {
+		await removePiPlugin({ agentDir: this.agentDir, scope, source, workspacePath: await this.resolvePluginWorkspace(workspacePath) });
+	}
+
+	async setPluginEnabled(source: string, enabled: boolean, scope: "global" | "workspace", workspacePath?: string): Promise<void> {
+		await setPiPluginEnabled({ agentDir: this.agentDir, enabled, scope, source, workspacePath: await this.resolvePluginWorkspace(workspacePath) });
+	}
+
+	private async resolvePluginWorkspace(workspacePath?: string): Promise<string | undefined> {
+		if (!workspacePath) return undefined;
+		return (await this.openWorkspace(workspacePath)).path;
 	}
 
 	getSession(sessionPath: string): PiSession {

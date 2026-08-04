@@ -19,7 +19,7 @@ useChatSession(workspacePath, sessionId, sessionPath)
 - `snapshot.isSending`、`isRefreshing`、`error`：会话请求状态。
 - `session.view.items`：由 `SessionView` 缓存的持久 render items。
 
-`SessionChat` 只保留 transcript 滚动锚点等容器 UI 状态；`ChatComposer` 内聚 draft、待发送附件、预览和 prompt / steer / follow-up 用户意图。切换 session identity 时由父组件 key 触发 Composer 重建；后台 session 继续由 Chat Store 接收事件，不随界面卸载终止。
+`SessionProvider` 保存当前 session 的局部跨组件 UI 状态：`EditMessageAtom` 管理消息编辑目标并初始化 `EditEditorAtom`，`ChatEditorAtom` 管理新消息 draft 与完整 extension registry；两套 editor runtime 分别持有 draft、active extension 与 DOM handler。`EditEditorAtom` 只注册 file 与 skill extension，避免历史消息编辑触发会话 command。`Editor` 只订阅完整 draft 并派发输入、选择和语义命令，`EditorFloat` 只宿主 registry 中当前 extension 提供的 Panel，`ChatComposer` 只订阅草稿是否有效；待发送附件、预览和 prompt / steer / follow-up 用户意图仍由 `ChatComposer` 内聚。切换 session identity 时由父组件 key 重建 `SessionProvider` 与 Composer；后台 session 继续由 Chat Store 接收事件，不随界面卸载终止。
 
 ## 用户意图
 
@@ -49,10 +49,13 @@ useChatSession(workspacePath, sessionId, sessionPath)
 ## 组件边界
 
 - `index.tsx`：把 Chat Store snapshot/session 适配给 Header、Transcript、权限提示与 Composer，不持有输入状态或发送操作。
+- `session.atom.ts`：只组装 `SessionProvider`、消息编辑 atom 与 `ChatEditorAtom`；编辑器 extension framework、registry 和 derive runtime 均位于 `chat/composer/editor/`。
 - `chat/ChatTranscript.tsx`：隔离持久历史与互斥临时尾部渲染。
 - `chat/messages/`：普通消息展示。
 - `chat/tools/`：工具 section、详情骨架、动画、renderer registry。
-- `chat/composer/ChatComposer.tsx`：拥有 draft、待发送附件及其 prompt / steer / follow-up 操作，协调输入区、附件区、工具栏和错误展示。
+- `chat/composer/ChatComposer.tsx`：订阅 draft 有效性，拥有待发送附件及其 prompt / steer / follow-up 操作，协调输入区、附件区、工具栏和错误展示。
+- `chat/composer/editor/index.tsx`：Editor 公共入口；外层保持稳定 ref/callback，内部 textarea 订阅 draft，并将 DOM 输入、光标和按键转换为 framework event/command。
+- `chat/composer/editor/Float.tsx`：通过 `useFloatState` 查找 active extension，只提供 Popover 宿主并挂载插件自带的 Panel；不理解插件候选或 UI。
 - `chat/composer/ComposerAttachments.tsx`：待发送图片的缩略图、移除操作与预览入口。
 - `chat/composer/ComposerToolbar.tsx`：附件选择、模型/thinking、认证、follow-up 与发送操作。
 - `chat/composer/QueuedInputs.tsx`：先渲染 steering、再渲染 follow-ups，并展示各项提交状态。
@@ -61,6 +64,9 @@ useChatSession(workspacePath, sessionId, sessionPath)
 - `chat/composer/ModelThinkingSelector.tsx`：通过 `ChatSession` 修改模型和 thinking。
 - `chat/ImagePreviewDialog.tsx`：Composer 与历史用户消息共用的全屏图片查看器，支持方向键和前后切换。
 - `chat/ToolPermissionPrompt.tsx`：展示队首授权并返回决定。
+- 成功 compact 后通过全局 Radix Toast 通知摘要位置；通知由 `CompactSessionMutation` 在 RPC 成功后写入通用通知队列。
+
+`createToast()` 未传 `duration` 时默认 5 秒；`duration: null` 创建只可手动关闭的持久通知。需要用户决策时应使用 `AlertDialog`，而不是持久通知。
 - `settings/`、`export/`：session 附属界面，不持有第二份 transcript。
 
 ## 验证

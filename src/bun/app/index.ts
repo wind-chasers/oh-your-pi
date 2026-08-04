@@ -1,4 +1,8 @@
 import type {
+	PiPluginInspectionRequest,
+	PiPluginSetEnabledRequest,
+	PiPluginSnapshot,
+	PiPluginSourceRequest,
 	PiWorkspaceRefreshResult,
 	PiWorkspaceRequest,
 	PiWorkspaceSnapshot,
@@ -14,7 +18,7 @@ export class Application {
 	readonly workspace: WorkspaceApplication;
 	private disposed = false;
 
-	constructor(pi: PiRuntime) {
+	constructor(private readonly pi: PiRuntime) {
 		this.authentication = new AuthenticationApplication(pi.authentication);
 		this.workspace = new WorkspaceApplication(pi);
 		this.session = new SessionApplication(pi, this.authentication);
@@ -36,6 +40,30 @@ export class Application {
 			this.session.list(workspace.workspacePath),
 		]);
 		return { snapshot: { ...workspace, authentication, sessions } };
+	}
+
+	async inspectPlugins(input: PiPluginInspectionRequest): Promise<PiPluginSnapshot> {
+		return this.pi.inspectPlugins(input.workspacePath);
+	}
+
+	async installPlugin(input: PiPluginSourceRequest): Promise<PiPluginSnapshot> {
+		await this.pi.installPlugin(input.source, input.scope, input.workspacePath);
+		return this.pi.inspectPlugins(input.workspacePath);
+	}
+
+	async updatePlugin(input: PiPluginSourceRequest): Promise<PiPluginSnapshot> {
+		await this.pi.updatePlugin(input.source, input.scope, input.workspacePath);
+		return this.pi.inspectPlugins(input.workspacePath);
+	}
+
+	async removePlugin(input: PiPluginSourceRequest): Promise<PiPluginSnapshot> {
+		await this.pi.removePlugin(input.source, input.scope, input.workspacePath);
+		return this.pi.inspectPlugins(input.workspacePath);
+	}
+
+	async setPluginEnabled(input: PiPluginSetEnabledRequest): Promise<PiPluginSnapshot> {
+		await this.pi.setPluginEnabled(input.source, input.enabled, input.scope, input.workspacePath);
+		return this.pi.inspectPlugins(input.workspacePath);
 	}
 
 	async dispose(): Promise<void> {

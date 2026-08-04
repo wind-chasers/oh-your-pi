@@ -152,6 +152,7 @@ export class AuthenticationApplication {
 			userCode: null,
 			promptId: id,
 			placeholder: "placeholder" in prompt ? prompt.placeholder ?? null : null,
+			allowsEmpty: acceptsEmptyPrompt(provider, prompt),
 			inputType: prompt.type,
 			options: prompt.type === "select"
 				? prompt.options.map(({ id: optionId, label }) => ({ id: optionId, label }))
@@ -172,7 +173,14 @@ export class AuthenticationApplication {
 		for (const listener of this.listeners) listener(event);
 	}
 
+
 	private requireActive(): void {
 		if (this.disposed) throw new Error("认证服务已经关闭。");
 	}
 }
+
+function acceptsEmptyPrompt(provider: string, prompt: AuthPrompt): boolean {
+	return provider === "github-copilot"
+		&& prompt.type === "text"
+		&& prompt.message === "GitHub Enterprise URL/domain (blank for github.com)";
+	}

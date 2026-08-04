@@ -9,6 +9,7 @@ import type {
 	PiExtensionResource,
 	PiResourceDiagnostic,
 	PiResourceItem,
+	PiSkillResource,
 	PiSessionSummary,
 	PiOpenedSession,
 	PiSessionTranscript,
@@ -24,7 +25,7 @@ import {
 export type PiResourceSnapshot = {
 	agentDir: string;
 	extensions: PiExtensionResource[];
-	skills: PiResourceItem[];
+	skills: PiSkillResource[];
 	prompts: PiResourceItem[];
 	contextFileCount: number;
 	diagnostics: PiResourceDiagnostic[];
@@ -75,6 +76,7 @@ export class PiWorkspace {
 				tools: [...extension.tools.keys()],
 			})),
 			skills: skills.skills.map((skill) => ({
+				description: skill.description,
 				name: skill.name,
 				path: skill.filePath,
 				scope: skill.sourceInfo.scope,
@@ -123,6 +125,31 @@ export class PiWorkspace {
 		const info = await this.findSession(sessionPath);
 		await this.sessions.delete(info.path);
 		return info.path;
+	}
+
+	async forkSession(sessionPath: string, hooks: PiSessionHooks): Promise<PiSession> {
+		const info = await this.findSession(sessionPath);
+		const source = this.sessions.get(info.path);
+		if (!source.isIdle) throw new Error("Pi 正在运行，请完成或中止后再复制会话。");
+		return this.sessions.open({
+			hooks,
+			sessionManager: source.createClonedSessionManager(),
+			workspacePath: this.path,
+		});
+	}
+
+	async dropSession(sessionPath: string, hooks: PiSessionHooks): Promise<PiSession> {
+		const info = await this.findSession(sessionPath);
+		const source = this.sessions.get(info.path);
+		if (!source.isIdle) throw new Error("Pi 正在运行，请完成或中止后再删除会话。");
+		const replacement = await this.createSession(hooks);
+		try {
+			await this.sessions.delete(info.path);
+			return replacement;
+		} catch (error) {
+			await this.sessions.delete(replacement.path).catch(() => undefined);
+			throw error;
+		}
 	}
 
 	async openSession(sessionPath: string, hooks: PiSessionHooks): Promise<PiSession> {

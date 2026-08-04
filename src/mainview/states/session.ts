@@ -1,11 +1,16 @@
 import type { PiSessionSummary } from "@shared/pi-contract";
-import { mutate } from "@view/atom";
+import { atom, mutate } from "@view/atom";
 import type { UseAtom } from "@view/atom";
 import { chatStore, type ChatSession } from "@view/chat-store";
 import { deletePiSession, inspectPiWorkspace, renamePiSession } from "@view/lib/pi-client";
+import { createToast, AppToastsAtom } from "./toast.atom";
 import { WorkspaceBusyAtom, WorkspaceErrorAtom } from "./activity.atom";
 import { SelectedSessionAtom, WorkspaceAtom } from "./current.atom";
 import type { SelectedChatSession } from "./current.atom";
+
+export type SessionCommandDialog = "fork" | "drop" | null;
+
+export const SessionCommandDialogAtom = atom<SessionCommandDialog>(null);
 
 export const SelectSessionMutation = mutate((use) =>
 	async function selectSession(summary: PiSessionSummary): Promise<void> {
@@ -31,13 +36,21 @@ export const SelectSessionMutation = mutate((use) =>
 
 export const CreateSessionMutation = mutate((use) =>
 	async function createSession(): Promise<void> {
-		await createAndSelect(use, (workspacePath) => chatStore.createSession(workspacePath));
+		await openAndSelect(
+			use,
+			(workspacePath) => chatStore.createSession(workspacePath),
+			"无法创建 Pi 会话。",
+		);
 	},
 );
 
 export const ContinueRecentSessionMutation = mutate((use) =>
 	async function continueRecentSession(): Promise<void> {
-		await createAndSelect(use, (workspacePath) => chatStore.continueRecentSession(workspacePath));
+		await openAndSelect(
+			use,
+			(workspacePath) => chatStore.continueRecentSession(workspacePath),
+			"无法创建 Pi 会话。",
+		);
 	},
 );
 
@@ -111,12 +124,55 @@ export const DeleteSessionMutation = mutate((use) =>
 	},
 );
 
-async function createAndSelect(
+export const ForkSessionMutation = mutate((use) =>
+	async function forkSession(summary: PiSessionSummary): Promise<boolean> {
+		return openAndSelect(use, (workspacePath) =>
+			chatStore.forkSession(workspacePath, summary.path), "无法复制 Pi 会话。");
+	},
+);
+
+export const DropSessionMutation = mutate((use) =>
+	async function dropSession(summary: PiSessionSummary): Promise<boolean> {
+		return openAndSelect(use, (workspacePath) =>
+			chatStore.dropSession(workspacePath, summary.id, summary.path), "无法删除 Pi 会话。");
+	},
+);
+
+export const CompactSessionMutation = mutate((use) =>
+	async function compactSession(): Promise<boolean> {
+		const selection = use(SelectedSessionAtom)[0];
+		if (!selection) return false;
+		const [, setError] = use(WorkspaceErrorAtom);
+		const [, setBusy] = use(WorkspaceBusyAtom);
+		const [, setToasts] = use(AppToastsAtom);
+		const session = chatStore.getSession(selection.workspacePath, selection.sessionId);
+		if (!session) return false;
+		setError(undefined);
+		setBusy(true);
+		try {
+			await session.compact();
+			setToasts((current) => [...current, createToast({
+				description: "完整摘要已更新到对话记录顶部。",
+				title: "上下文已压缩",
+				variant: "success",
+			})]);
+			return true;
+		} catch (requestError) {
+			setError(toErrorMessage(requestError, "无法压缩 Pi 会话。"));
+			return false;
+		} finally {
+			setBusy(false);
+		}
+	},
+);
+
+async function openAndSelect(
 	use: UseAtom,
-	create: (workspacePath: string) => Promise<ChatSession>,
-): Promise<void> {
+	open: (workspacePath: string) => Promise<ChatSession>,
+	fallback: string,
+): Promise<boolean> {
 	const [workspace, setWorkspace] = use(WorkspaceAtom);
-	if (!workspace) return;
+	if (!workspace) return false;
 	const workspacePath = workspace.workspacePath;
 	const [, setSelectedSession] = use(SelectedSessionAtom);
 	const [, setError] = use(WorkspaceErrorAtom);
@@ -124,15 +180,17 @@ async function createAndSelect(
 	setError(undefined);
 	setBusy(true);
 	try {
-		const session = await create(workspacePath);
-		if (use(WorkspaceAtom)[0]?.workspacePath !== workspacePath) return;
+		const session = await open(workspacePath);
+		if (use(WorkspaceAtom)[0]?.workspacePath !== workspacePath) return false;
 		setSelectedSession(toSelection(session));
 		const nextWorkspace = await inspectPiWorkspace({ workspacePath });
 		if (use(WorkspaceAtom)[0]?.workspacePath === workspacePath) {
 			setWorkspace(nextWorkspace);
 		}
+		return true;
 	} catch (requestError) {
-		setError(toErrorMessage(requestError, "无法创建 Pi 会话。"));
+		setError(toErrorMessage(requestError, fallback));
+		return false;
 	} finally {
 		setBusy(false);
 	}

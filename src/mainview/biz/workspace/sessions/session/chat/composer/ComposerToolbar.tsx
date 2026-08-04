@@ -83,7 +83,7 @@ export function ComposerToolbar({
 }
 
 export function AuthenticationEntry() {
-	const setAuthenticationOpen = AuthenticationDialogOpenAtom.useChange();
+	const setAuthenticationOpen = AuthenticationDialogOpenAtom.useSet();
 	return (
 		<Button onClick={() => setAuthenticationOpen(true)} size="sm" type="button">
 			<ShieldCheck aria-hidden data-icon="inline-start" />

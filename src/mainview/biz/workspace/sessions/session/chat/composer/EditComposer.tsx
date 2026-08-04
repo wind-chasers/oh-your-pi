@@ -1,15 +1,17 @@
-import { type SubmitEvent, useEffect, useRef, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { type PiImageAttachment, PI_IMAGE_ATTACHMENT_LIMIT } from "@shared/pi-contract";
-import type { ChatSession } from "@view/chat-store";
-import { ComposerAttachments } from "./ComposerAttachments";
-import { useComposerAttachments } from "./use-composer-attachments";
-import { ImageOff, LoaderCircle, Send } from "lucide-react";
-import { Button } from "@view/components/ui/button";
-import { ModelThinkingSelector } from "./ModelThinkingSelector";
-import { UserViewItem } from "../../editing-message";
-import { AuthenticationEntry, AttachmentEntry } from './ComposerToolbar';
-import { useLLMStatus } from "./ChatComposer";
 import type { ImageContent } from "@earendil-works/pi-ai";
+import type { ChatSession } from "@view/chat-store";
+import type { UserViewItem } from "@view/chat-store/session-view";
+import { Button } from "@view/components/ui/button";
+import { ImageOff, LoaderCircle, Send } from "lucide-react";
+import { EditEditorAtom } from "../../session.atom";
+import { ComposerAttachments } from "./ComposerAttachments";
+import { AuthenticationEntry, AttachmentEntry } from "./ComposerToolbar";
+import { Editor } from "./editor";
+import { ModelThinkingSelector } from "./ModelThinkingSelector";
+import { useLLMStatus } from "./ChatComposer";
+import { useComposerAttachments } from "./use-composer-attachments";
 
 function translateImages(input: readonly ImageContent[]): PiImageAttachment[] {
   return input.map((image, index) => {
@@ -30,8 +32,8 @@ export function EditComposer(props: {
 }) {
   const { target, session, cancel } = props;
 
-  const editor = useRef<HTMLTextAreaElement | null>(null);
-  const [draft, setDraft] = useState(target.text);
+  const editor = EditEditorAtom.useDerived();
+  const isEditorValid = editor.useValid();
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string>();
 	const [attachments, setAttachments] = useState<PiImageAttachment[]>(translateImages(target.images));
@@ -39,17 +41,10 @@ export function EditComposer(props: {
 
   const openedSession = session.snapshot.useOpenedSession()!;
   const { hasValidProvider, isValidModel, supportsImages } = useLLMStatus(openedSession);
-  useEffect(() => {
-    if (editor.current) {
-      const length = editor.current.value.length;
-      editor.current.focus();
-      editor.current.setSelectionRange(length, length);
-    }
-  }, []);
 
   const images = supportsImages ? attachments : [];
-  const canSend = !isSending && !attachmentState.isAdding && isValidModel && (draft.trim() !== "" || images.length > 0);
-  const canAttach =  !isSending && attachments.length < PI_IMAGE_ATTACHMENT_LIMIT;
+  const canSend = !isSending && !attachmentState.isAdding && isValidModel && (isEditorValid || images.length > 0);
+  const canAttach = !isSending && attachments.length < PI_IMAGE_ATTACHMENT_LIMIT;
 
 	async function handleSubmit(event: SubmitEvent<HTMLFormElement>): Promise<void> {
 		event.preventDefault();
@@ -57,7 +52,7 @@ export function EditComposer(props: {
     setError(undefined);
     setIsSending(true);
 		try {
-      await session.regenerate(target.entryId, { text: draft, attachments: images });
+      await session.regenerate(target.entryId, { text: editor.get().draft, attachments: images });
       cancel();
 		} catch (submitError) {
       setError(toErrorMessage(submitError));
@@ -65,11 +60,6 @@ export function EditComposer(props: {
 		}
 	}
 
-	function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>): void {
-		if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return;
-		event.preventDefault();
-		event.currentTarget.form?.requestSubmit();
-	}
 
 	function handlePaste(event: React.ClipboardEvent<HTMLTextAreaElement>): void {
 		void attachmentState.paste(event.clipboardData);
@@ -94,17 +84,12 @@ export function EditComposer(props: {
             previewImages={attachmentState.previewImages}
             tip={attachTip}
           />
-          <textarea
-            aria-label="发送给 Pi 的消息"
-            className="block min-h-lh max-h-[8lh] w-full field-sizing-content resize-none overflow-y-auto border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground/40"
+          <Editor
+            atom={EditEditorAtom}
             disabled={isSending}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={handleKeyDown}
+            focusOnMount
             onPaste={handlePaste}
             placeholder={composerPlaceholder(hasValidProvider)}
-            rows={1}
-            value={draft}
-            ref={editor}
           />
         </div>
         <div className="mt-2 flex items-center justify-between gap-3 px-0.5">

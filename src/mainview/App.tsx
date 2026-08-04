@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
-import { TooltipProvider } from "@view/components/ui/tooltip";
 import { AppShell } from "@view/biz/app/AppShell";
+import { AppToaster } from "@view/biz/app/AppToaster";
+import { TooltipProvider } from "@view/components/ui/tooltip";
 
 const APPLICATION_NAME = "Oh Your Pi";
 
@@ -13,6 +14,7 @@ export default function App(): ReactElement {
 			<TooltipProvider>
 				<AppShell />
 			</TooltipProvider>
+			<AppToaster />
 		</div>
 	);
 }

@@ -7,6 +7,8 @@ import { ComposerAttachments } from "./ComposerAttachments";
 import { ComposerToolbar } from "./ComposerToolbar";
 import { QueuedInputs } from "./QueuedInputs";
 import { useComposerAttachments } from "./use-composer-attachments";
+import { Editor } from "./editor";
+import { ChatEditorAtom } from "../../session.atom";
 
 type ChatComposerProps = {
 	error?: string | null;
@@ -17,7 +19,7 @@ type ChatComposerProps = {
 };
 
 export function useLLMStatus(openedSession: PiOpenedSession) {
-	const authentication = AuthenticationAtom.useData() ?? [];
+	const authentication = AuthenticationAtom.useValue() ?? [];
 	const validProviders = useMemo(() => {
 		const set = new Set<string>();
 		for (const { status, provider } of authentication) {
@@ -41,7 +43,8 @@ export function ChatComposer({
 	queuedInputs,
 	session,
 }: ChatComposerProps): ReactElement {
-	const [draft, setDraft] = useState("");
+	const editor = ChatEditorAtom.useDerived();
+	const isEditorValid = editor.useValid();
 	const [attachments, setAttachments] = useState<PiImageAttachment[]>([]);
 	const attachmentState = useComposerAttachments({
 		attachments,
@@ -50,11 +53,10 @@ export function ChatComposer({
 	const isStreaming = openedSession.runtime.isStreaming;
 	const { hasValidProvider, isValidModel, supportsImages } = useLLMStatus(openedSession);
 
-	const canCompose = hasValidProvider && isValidModel;
 	const hasUnsupportedAttachments = attachments.length > 0 && !supportsImages;
-	const canSend = canCompose
+	const canSend = isValidModel
 		&& !attachmentState.isAdding
-		&& (draft.trim() !== "" || attachments.length > 0)
+		&& (isEditorValid || attachments.length > 0)
 		&& !hasUnsupportedAttachments;
 	const visibleError = attachmentState.error
 		?? (hasUnsupportedAttachments ? "当前模型不支持图片输入，请切换模型或移除附件。" : error);
@@ -62,11 +64,11 @@ export function ChatComposer({
 	async function handleSubmit(event: SubmitEvent<HTMLFormElement>): Promise<void> {
 		event.preventDefault();
 		if (!canSend) return;
-		const text = draft.trim();
+		const text = editor.get().draft.trim();
 		try {
 			if (isStreaming) await session.steer({ text, attachments });
 			else await session.prompt({ text, attachments });
-			setDraft("");
+			editor.reset();
 			setAttachments([]);
 		} catch {
 			// ChatSession publishes the visible error into its snapshot.
@@ -76,18 +78,12 @@ export function ChatComposer({
 	async function handleFollowUp(): Promise<void> {
 		if (!isStreaming || !canSend) return;
 		try {
-			await session.followUp({ text: draft.trim(), attachments });
-			setDraft("");
+			await session.followUp({ text: editor.get().draft.trim(), attachments });
+			editor.reset();
 			setAttachments([]);
 		} catch {
 			// ChatSession publishes the visible error into its snapshot.
 		}
-	}
-
-	function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>): void {
-		if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return;
-		event.preventDefault();
-		event.currentTarget.form?.requestSubmit();
 	}
 
 	function handlePaste(event: React.ClipboardEvent<HTMLTextAreaElement>): void {
@@ -109,21 +105,16 @@ export function ChatComposer({
 						onRemove={attachmentState.remove}
 						previewImages={attachmentState.previewImages}
 					/>
-					<textarea
-						aria-label="发送给 Pi 的消息"
-						className="block min-h-lh max-h-[8lh] w-full field-sizing-content resize-none overflow-y-auto border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground/40"
-						disabled={isSending || !canCompose}
-						onChange={(event) => setDraft(event.target.value)}
-						onKeyDown={handleKeyDown}
+					<Editor
+						atom={ChatEditorAtom}
+						disabled={isSending || !isValidModel}
 						onPaste={handlePaste}
 						placeholder={composerPlaceholder(hasValidProvider, isStreaming)}
-						rows={1}
-						value={draft}
 					/>
 				</div>
 				<ComposerToolbar
 					attachmentCount={attachments.length}
-					canCompose={canCompose}
+					canCompose={isValidModel}
 					canSend={canSend}
 					hasAvailableCredential={hasValidProvider}
 					hasAvailableModel={isValidModel}

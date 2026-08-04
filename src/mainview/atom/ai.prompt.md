@@ -14,7 +14,7 @@ type Change<T> = (ch: Reduce<T> | T) => void;
 ```
 后文多次提到的 set 函数，类型均为 `Change<T>`, 行为与 React.useState 的 setter 一致
 
-通过 `atom` 函数可以创建 3 种类型的原子
+通过 `atom` 函数可以创建 Value Atom、Derive Atom 和 Computed Atom
 
 ### 1. Value Atom
 基础的用法如下，代码中的 `set` 的类型是 `Change<T>`
@@ -25,17 +25,18 @@ function Component1() {
   return <div>{price}</div>;
 }
 function Component2() {
-  // 使用 useChange 时，priceAtom 的值发生变化不会导致 Component2 重新渲染
-  const set = priceAtom.useChange();
+  // useSet 只获取 setter，priceAtom 的值发生变化不会导致 Component2 重新渲染
+  const set = priceAtom.useSet();
   return <button onClick={() => set(150)}>increase</button>;
 }
 ```
+`use()` 同时返回当前值和 setter；`useValue()` 只返回当前值。这两种调用都会订阅状态变化。`useSet()` 只返回 setter，不会建立订阅。
 
-### 2. Action Atom
-在 Value Atom 的基础上，增加了定义一组预定义操作的能力
+### 2. Derive Atom
+在 Value Atom 的基础上，增加一组由状态单元派生出来的操作
 ```tsx
-// 这里 `get` 总是拿到最新的值，`set` 的类型是 `Change<T>`
-const priceAtom = atom(100, (get, set) => {
+// `get` 总是返回最新值，`set` 的类型是 `Change<T>`
+const priceAtom = atom(100, ({ get, set }) => {
   return {
     increase: (delta: number) => set(get() + delta),
     decrease: (delta: number) => set((prev) => prev - delta),
@@ -46,13 +47,15 @@ function Component1() {
   return <div>{price}</div>;
 }
 function Component2() {
-  // 使用 useChange 时，priceAtom 的值发生变化不会导致 Component2 重新渲染
-  const actions = priceAtom.useChange();
+  // useDerived 只获取派生操作，priceAtom 的值发生变化不会导致 Component2 重新渲染
+  const actions = priceAtom.useDerived();
   return <button onClick={() => actions.increase(1)}>increase</button>;
 }
 ```
-通过 Action Atom，可以按需的把一些复杂的操作封装成函数，方便在不同的组件中复用。
-这里要封装的函数可以是同步的，也可以是异步的，比如可以从服务器拉取数据后，根据结果更新 atom 的值，这就给了我们机会将一些通用的业务操作提炼为共用逻辑
+`use()` 同时返回当前值和派生操作；`useValue()` 只订阅并返回当前值；`useDerived()` 只返回派生操作，不会建立订阅。
+
+通过 Derive Atom，可以按需把复杂操作封装成函数，方便在不同组件中复用。
+派生操作可以是同步的，也可以是异步的。例如，可以从服务器拉取数据后更新 atom，从而把通用业务操作提炼为共用逻辑。
 
 ### 3. Computed Atom
 这是一种只读原子，它的值是通过其他原子计算得来的
@@ -61,46 +64,20 @@ const priceAtom = atom(100);
 const taxAtom = atom(0.1);
 const totalAtom = atom((use) => use(priceAtom) * (1 + use(taxAtom)));
 function Component() {
-  // computed atom 只能使用 use 来获取值，没有 useChange 方法，也无法改变数据
+  // Computed Atom 只能使用 use 获取值，没有 setter 或派生操作
   const total = totalAtom.use();
   return <div>{total}</div>;
 }
 ```
-创建 atom 时，使用的 `use` 方法，可以传入任意其他类型的 atom（包括 value atom, action atom, computed atom）返回其携带的值。并且会自动订阅它们的变化，从而在依赖的 atom 变化时，重新计算自己的值。
-
-### 4. Local Atom
-当状态只需要在一棵组件子树内共享，且同一子树可能同时存在多个实例时，使用 `./local` 中的 `local`，不要提升为全局 atom。每个 Provider 都拥有独立状态；Provider 卸载后，该状态随子树释放。
-
-```tsx
-import { local } from "@view/atom/local";
-
-const [EditorProvider, EditorAtom] = local(
-  () => ({ title: "", dirty: false }),
-  (get, set) => ({
-    rename(title: string) {
-      set({ ...get(), title, dirty: true });
-    },
-  }),
-);
-
-function EditorTitle() {
-  // `EditorAtom.useData`、`EditorAtom.useChange` 和 `EditorAtom.use` 的语义与 Action Atom 对应方法一致
-  // 但它们只能在对应的 Provider 子树中调用
-}
-
-function Editor() {
-  return <EditorProvider><EditorTitle /></EditorProvider>;
-}
-```
-
+创建 Computed Atom 时获得的 `use` 可以读取任意其它 atom（包括 Value Atom、Derive Atom 和 Computed Atom）的当前值，并自动订阅这些依赖；依赖变化时会重新计算当前 Computed Atom。
 
 ## 进阶用法
 
-### 1. Action Atom 也可以读取和修改其它 atom
+### 1. Derive Atom 也可以读取和修改其它 atom
 ```ts
 const a = atom(1);
 const b = atom(2);
-const c = atom(3, (get, set, use) => {
+const c = atom(3, ({ set }, use) => {
   function add(delta: number) {
     const [a_val, setA] = use(a);
     const [b_val, setB] = use(b);
@@ -112,19 +89,18 @@ const c = atom(3, (get, set, use) => {
 });
 ```
 
-可见创建 action atom 时，也可以获得一个 `use` 方法，这个方法也可以接受其它任意类型的 atom，但这个方法很灵活
-* 当传入 value atom 时： 会返回一个 `[value, set]` 的元组
-* 当传入 action atom 时： 会返回一个 `[value, actions]` 的元组
-* 当传入 computed atom 时： 只会返回它的值
+创建 Derive Atom 时还会获得一个 `use` 方法。它可以接受任意类型的 atom：
+* 传入 Value Atom 时，返回 `[value, set]` 元组
+* 传入 Derive Atom 时，返回 `[value, derived]` 元组
+* 传入 Computed Atom 时，只返回它的值
 
-这个 `use` 用起来很像 React 里的 hooks，所以很好理解。但需要注意的是：`use` 每次调用都会获取其他 atom 的最新值，但不会建立订阅关系，其它 atom 的变化不会触发 action 函数重新执行
-
+这里的 `use` 只读取其它 atom 的最新值，不会建立订阅关系；其它 atom 的变化不会重新创建派生操作。它不是 React Hook，可以在派生操作执行期间调用。
 
 ### 2. 异步初始化
 有的时候，我们希望 atom 的初始值来自服务器，但这个异步过程并不适合放在组件里执行，此时可以这么来巧妙的实现
 ```ts
 type Product = { /* ... */ };
-const productsAtom = atom([] as Product[], (get, set) => {
+const productsAtom = atom([] as Product[], ({ get, set }) => {
   async function initialize() {
     set(await fetchProductsFromServer());
   }
@@ -137,10 +113,10 @@ const productsAtom = atom([] as Product[], (get, set) => {
 });
 ```
 
-这里的 `initialize` 函数并不会立刻就执行，它只会在这个 productsAtom 第一次被 use 的时候才会调用，并且只会调用一次。注意，这里说的 use 包括 3 种情况：
-* 被其它 computed atom 依赖 use
-* 被其它 action atom 依赖的时候 use
-* 组件中调用 productsAtom.useXXX
+`initialize` 不会在定义 atom 时执行，只会在当前 Store 中第一次访问 `productsAtom` 时调用一次。访问包括：
+* 被 Computed Atom 读取
+* 被 Derive Atom 或 `mutate` 通过 `use` 读取
+* 组件调用 `productsAtom.use()`、`useValue()` 或 `useDerived()`
 
 依此类推，这种异步初始化的策略，也适合其它场景
 
@@ -152,7 +128,7 @@ import { produce } from 'immer';
 type Product = { /* ... */ };
 const productsAtom = atom([] as Product[]);
 function Component() {
-  const setProducts = productsAtom.useChange();
+  const setProducts = productsAtom.useSet();
   function add(item: Product) {
     setProducts(produce((draft) => {
       draft.push(item);
@@ -165,7 +141,7 @@ function Component() {
 ```ts
 import { produce } from 'immer';
 type Product = { /* ... */ };
-const productsAtom = atom([] as Product[], (get, set) => {
+const productsAtom = atom([] as Product[], ({ set }) => {
   function add(item: Product) {
     set(produce((draft) => {
       draft.push(item);
@@ -182,11 +158,10 @@ const price1Atom = atom(100);
 const price2Atom = atom(200);
 
 const discountMutation = mutate((use) => (percent: number) => {
-    const [price1, setPrice1] = use(price1Atom);
-    const [price2, setPrice2] = use(price2Atom);
-    setPrice1(price1 * percent);
-    setPrice2(price2 * percent);
-  },
+  const [price1, setPrice1] = use(price1Atom);
+  const [price2, setPrice2] = use(price2Atom);
+  setPrice1(price1 * percent);
+  setPrice2(price2 * percent);
 });
 
 function Component() {
