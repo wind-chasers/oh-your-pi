@@ -43,7 +43,8 @@ export function EditComposer(props: {
   const { hasValidProvider, isValidModel, supportsImages } = useLLMStatus(openedSession);
 
   const images = supportsImages ? attachments : [];
-  const canSend = !isSending && !attachmentState.isAdding && isValidModel && (isEditorValid || images.length > 0);
+  const hasTooManyImages = images.length > PI_IMAGE_ATTACHMENT_LIMIT;
+  const canSend = !isSending && !attachmentState.isAdding && isValidModel && !hasTooManyImages && (isEditorValid || images.length > 0);
   const canAttach = !isSending && attachments.length < PI_IMAGE_ATTACHMENT_LIMIT;
 
 	async function handleSubmit(event: SubmitEvent<HTMLFormElement>): Promise<void> {
@@ -52,7 +53,7 @@ export function EditComposer(props: {
     setError(undefined);
     setIsSending(true);
 		try {
-      await session.regenerate(target.entryId, { text: editor.get().draft, attachments: images });
+      await session.regenerate(target.entryId, { text: editor.get().draft.trim(), attachments: images });
       cancel();
 		} catch (submitError) {
       setError(toErrorMessage(submitError));
@@ -71,6 +72,8 @@ export function EditComposer(props: {
       <span>当前模型不支持图片，这些附件不会被发送。</span>
     </p>
   );
+  const visibleError = attachmentState.error
+    ?? (hasTooManyImages ? `每条消息最多附加 ${PI_IMAGE_ATTACHMENT_LIMIT} 张图片。` : error);
 
   return (
     <div className="bg-background">
@@ -110,9 +113,9 @@ export function EditComposer(props: {
             ) : <AuthenticationEntry />}
           </div>
         </div>
-        {(attachmentState.error ?? error) && (
+        {visibleError && (
           <p className="mt-2 text-sm text-destructive" role="alert">
-            {attachmentState.error ?? error}
+            {visibleError}
           </p>
         )}
       </form>

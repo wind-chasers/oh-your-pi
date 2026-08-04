@@ -1,6 +1,6 @@
 {
 	"name": "oh-your-pi",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"description": "Electrobun desktop client powered by React and Vite",
 	"scripts": {
 		"start": "vite build && electrobun dev",

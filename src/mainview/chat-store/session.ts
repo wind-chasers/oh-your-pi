@@ -28,7 +28,7 @@ import type {
 	ChatSessionActivity,
 	ChatUserInput,
 } from "./types";
-import { assertOpenedSessionIdentity, normalizePromptInput, requireValue, toErrorMessage } from "./utils";
+import { assertOpenedSessionIdentity, requireValue, toErrorMessage } from "./utils";
 
 export class ChatSession {
 	public readonly view: SessionView;
@@ -88,19 +88,16 @@ export class ChatSession {
 
 	public async prompt(input: ChatUserInput): Promise<void> {
 		const openedSession = this.requireOpenedSession();
-		const normalized = normalizePromptInput(
-			input.text,
-			input.attachments.map((attachment) => attachment.source),
-		);
+		const images = input.attachments.map((attachment) => attachment.source);
 		if (openedSession.runtime.isStreaming) {
 			throw new Error("Pi 会话正在运行，请使用 steer 或 followUp。");
 		}
 		const requestRevision = this.stream.eventRevision;
-		const pendingMessage = createPendingUserMessage(normalized.text, input);
+		const pendingMessage = createPendingUserMessage(input.text, input);
 		this.beginCommand();
 		this.stream.beginPrompt(pendingMessage);
 		try {
-			const runtime = await promptPiSession({ sessionPath: this.path, ...normalized });
+			const runtime = await promptPiSession({ sessionPath: this.path, text: input.text, images });
 			if (!this.disposed && this.stream.eventRevision === requestRevision) {
 				this.applyRuntime(runtime);
 			}
@@ -121,16 +118,13 @@ export class ChatSession {
 
 	public async regenerate(entryId: string, input: ChatUserInput): Promise<void> {
 		if (this.regeneration) throw new Error("已有历史消息正在重新生成。");
-		const normalized = normalizePromptInput(
-			input.text,
-			input.attachments.map((attachment) => attachment.source),
-		);
+		const images = input.attachments.map((attachment) => attachment.source);
 		const clientId = Math.random().toString(36).slice(2, 10);
 		this.regeneration = { clientId, ...Promise.withResolvers<void>() };
 		this.beginCommand();
 		this.snapshot.setError(null);
 		try {
-			regeneratePiSession({ clientId, entryId, sessionPath: this.path, ...normalized})
+			regeneratePiSession({ clientId, entryId, sessionPath: this.path, text: input.text, images })
 				.catch(this.regeneration.reject);
 			await this.regeneration.promise;
 		} catch (error) {
@@ -308,20 +302,17 @@ export class ChatSession {
 	): Promise<void> {
 		const openedSession = this.requireOpenedSession();
 		if (!openedSession.runtime.isStreaming) throw new Error("Pi 会话当前没有运行中的任务。");
-		const normalized = normalizePromptInput(
-			input.text,
-			input.attachments.map((attachment) => attachment.source),
-		);
+		const images = input.attachments.map((attachment) => attachment.source);
 		const clientId = Math.random().toString(36).slice(2, 10);
 		const queuedInput: ChatQueuedUserInput = {
 			state: "submitting",
-			message: createPendingUserMessage(normalized.text, input, clientId),
+			message: createPendingUserMessage(input.text, input, clientId),
 		};
 		const requestRevision = this.stream.eventRevision;
 		this.beginCommand();
 		this.stream.beginQueuedInput(queue, queuedInput);
 		try {
-			const runtime = await request({ clientId, sessionPath: this.path, ...normalized });
+			const runtime = await request({ clientId, sessionPath: this.path, text: input.text, images });
 			if (!this.disposed) {
 				this.stream.acceptQueuedInput(queuedInput.message.clientId);
 				if (this.stream.eventRevision === requestRevision) this.applyRuntime(runtime);

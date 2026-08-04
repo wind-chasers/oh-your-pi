@@ -1,12 +1,13 @@
-import { CircleAlert, WifiOff } from "lucide-react";
+import { CircleAlert, WifiOff, X } from "lucide-react";
 import { type ReactElement } from "react";
+import { Button } from "@view/components/ui/button";
 import { WorkspaceErrorAtom } from "@view/states/activity.atom";
 import { NetworkOnlineAtom } from "@view/states/network.atom";
 
-
 export function WorkspaceAlerts(): ReactElement {
-	const error = WorkspaceErrorAtom.useValue();
+	const [error, setError] = WorkspaceErrorAtom.use();
 	const isNetworkOnline = NetworkOnlineAtom.useValue();
+
 	return (
 		<>
 			{!isNetworkOnline ? (
@@ -16,13 +17,23 @@ export function WorkspaceAlerts(): ReactElement {
 				</p>
 			) : null}
 			{error ? (
-				<p
-					className="flex items-center gap-2 border-b bg-destructive/10 px-4 py-2 text-xs text-destructive"
+				<div
+					className="flex items-center gap-2 bg-destructive/10 px-4 py-2 text-xs text-destructive"
 					role="alert"
 				>
-					<CircleAlert aria-hidden className="size-3.5" />
-					{error}
-				</p>
+					<CircleAlert aria-hidden className="size-3.5 shrink-0" />
+					<span className="min-w-0 flex-1">{error}</span>
+					<Button
+						aria-label="关闭错误提示"
+						className="-my-1 shrink-0"
+						onClick={() => setError(undefined)}
+						size="icon-xs"
+						type="button"
+						variant="ghost"
+					>
+						<X aria-hidden />
+					</Button>
+				</div>
 			) : null}
 		</>
 	);
